@@ -5218,7 +5218,7 @@ let TypeCheckOneInputEventually
 
                 // Typecheck the signature file 
                 let! (tcEnvAtEnd,tcEnv,smodulTypeRoot) = 
-                    Tc.TypeCheckOneSigFile (tcGlobals,tcState.tcsNiceNameGen,amap,tcState.tcsCcu,checkForErrors,tcConfig.conditionalCompilationDefines,tcSink) tcState.tcsTcSigEnv (GetExpressionParser(tcConfig, new Lexhelp.LexResourceManager())) file
+                    TypeCheckOneSigFile (tcGlobals,tcState.tcsNiceNameGen,amap,tcState.tcsCcu,checkForErrors,tcConfig.conditionalCompilationDefines,tcSink) tcState.tcsTcSigEnv (GetExpressionParser(tcConfig, new Lexhelp.LexResourceManager())) file
 
                 let rootSigs = Zmap.add qualNameOfFile  smodulTypeRoot rootSigs
 
@@ -5248,7 +5248,7 @@ let TypeCheckOneInputEventually
 
                 // Typecheck the implementation file 
                 let! topAttrs,implFile,tcEnvAtEnd = 
-                    Tc.TypeCheckOneImplFile (tcGlobals,tcState.tcsNiceNameGen,amap,tcState.tcsCcu,checkForErrors,tcConfig.conditionalCompilationDefines,tcSink) tcImplEnv (GetExpressionParser(tcConfig, new Lexhelp.LexResourceManager())) rootSigOpt file
+                    TypeCheckOneImplFile (tcGlobals,tcState.tcsNiceNameGen,amap,tcState.tcsCcu,checkForErrors,tcConfig.conditionalCompilationDefines,tcSink) tcImplEnv (GetExpressionParser(tcConfig, new Lexhelp.LexResourceManager())) rootSigOpt file
 
                 let hadSig = isSome rootSigOpt
                 let implFileSigType = SigTypeOfImplFile implFile
