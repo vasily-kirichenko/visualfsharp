@@ -33,8 +33,16 @@ open Microsoft.FSharp.Compiler.Range
 type internal FSharpCompletionService(workspace: Workspace, serviceProvider: SVsServiceProvider) =
     inherit CompletionServiceWithProviders(workspace)
 
-    let builtInProviders = ImmutableArray.Create<CompletionProvider>(FSharpCompletionProvider(workspace, serviceProvider))
-    let completionRules = CompletionRules.Default.WithDismissIfEmpty(true).WithDismissIfLastCharacterDeleted(true).WithDefaultEnterKeyRule(EnterKeyRule.Never)
+    let builtInProviders = 
+        ImmutableArray.Create<CompletionProvider>(
+                        FSharpCompletionProvider(workspace, serviceProvider),
+                        FSharpKeywordCompletionProvider(workspace))
+
+    let completionRules = 
+        CompletionRules.Default
+            .WithDismissIfEmpty(true)
+            .WithDismissIfLastCharacterDeleted(true)
+            .WithDefaultEnterKeyRule(EnterKeyRule.Never)
 
     override this.Language = FSharpCommonConstants.FSharpLanguageName
     override this.GetBuiltInProviders() = builtInProviders

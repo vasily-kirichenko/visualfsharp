@@ -53,6 +53,12 @@
     <Compile Include="ProjectDiagnosticAnalyzer.fs">
       <Link>Diagnostics\ProjectDiagnosticAnalyzer.fs</Link>
     </Compile>
+    <Compile Include="Utils.fs">
+      <Link>Completion\Utils.fs</Link>
+    </Compile>
+    <Compile Include="KeywordCompletionProvider.fs">
+      <Link>Completion\KeywordCompletionProvider.fs</Link>
+    </Compile>
     <Compile Include="CompletionProvider.fs">
       <Link>Completion\CompletionProvider.fs</Link>
     </Compile>

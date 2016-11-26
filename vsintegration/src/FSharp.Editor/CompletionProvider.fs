@@ -4,33 +4,23 @@ namespace Microsoft.VisualStudio.FSharp.Editor
 
 open System
 open System.Composition
-open System.Collections.Concurrent
 open System.Collections.Generic
 open System.Collections.Immutable
 open System.Threading
 open System.Threading.Tasks
-open System.Linq
 open System.Runtime.CompilerServices
 
 open Microsoft.CodeAnalysis
 open Microsoft.CodeAnalysis.Completion
-open Microsoft.CodeAnalysis.Classification
-open Microsoft.CodeAnalysis.Editor
-open Microsoft.CodeAnalysis.Editor.Implementation.Debugging
-open Microsoft.CodeAnalysis.Editor.Shared.Utilities
-open Microsoft.CodeAnalysis.Formatting
-open Microsoft.CodeAnalysis.Host.Mef
 open Microsoft.CodeAnalysis.Options
 open Microsoft.CodeAnalysis.Text
 
 open Microsoft.VisualStudio.FSharp.LanguageService
 open Microsoft.VisualStudio.Text
-open Microsoft.VisualStudio.Text.Tagging
 open Microsoft.VisualStudio.Shell
 open Microsoft.VisualStudio.Shell.Interop
 
 open Microsoft.FSharp.Compiler.Parser
-open Microsoft.FSharp.Compiler.Range
 open Microsoft.FSharp.Compiler.SourceCodeServices
 open Microsoft.FSharp.Compiler.SourceCodeServices.ItemDescriptionIcons
 
@@ -41,49 +31,6 @@ type internal FSharpCompletionProvider(workspace: Workspace, serviceProvider: SV
     
     let xmlMemberIndexService = serviceProvider.GetService(typeof<IVsXMLMemberIndexService>) :?> IVsXMLMemberIndexService
     let documentationBuilder = XmlDocumentation.CreateDocumentationBuilder(xmlMemberIndexService, serviceProvider.DTE)
-
-    static let isStartingNewWord (text: SourceText, characterPosition: int) =
-        let ch = text.[characterPosition]
-        
-        if (not (Char.IsLetter ch)) then false
-        // Only want to trigger if we're the first character in an identifier.  If there's a
-        // character before or after us, then we don't want to trigger.
-        elif characterPosition > 0 && Char.IsLetterOrDigit (text.[characterPosition - 1]) then false
-        elif characterPosition < text.Length - 1 && Char.IsLetterOrDigit(text.[characterPosition + 1]) then false
-        else true
-
-    static member ShouldTriggerCompletionAux(sourceText: SourceText, caretPosition: int, trigger: CompletionTriggerKind, getInfo: (unit -> DocumentId * string * string list)) =
-        // Skip if we are at the start of a document
-        if caretPosition = 0 then
-            false
-
-        // Skip if it was triggered by an operation other than insertion
-        elif not (trigger = CompletionTriggerKind.Insertion) then
-            false
-
-        // Skip if we are not on a completion trigger
-        else
-          let ch = sourceText.[caretPosition - 1]
-          if ch <> '.' && not ((ch = ' ' && (caretPosition = sourceText.Length - 1) || isStartingNewWord (sourceText, caretPosition - 1))) then
-            false
-
-          // Trigger completion if we are on a valid classification type
-          else
-            let documentId, filePath,  defines = getInfo()
-            let triggerPosition = caretPosition - 1
-            let textLine = sourceText.Lines.GetLineFromPosition(triggerPosition)
-            let classifiedSpanOption =
-                FSharpColorizationService.GetColorizationData(documentId, sourceText, textLine.Span, Some(filePath), defines, CancellationToken.None)
-                |> Seq.tryFind(fun classifiedSpan -> classifiedSpan.TextSpan.Contains(triggerPosition))
-
-            match classifiedSpanOption with
-            | None -> false
-            | Some(classifiedSpan) ->
-                match classifiedSpan.ClassificationType with
-                | ClassificationTypeNames.Comment -> false
-                | ClassificationTypeNames.StringLiteral -> false
-                | ClassificationTypeNames.ExcludedCode -> false
-                | _ -> true // anything else is a valid classification type
 
     static member ProvideCompletionsAsyncAux(sourceText: SourceText, caretPosition: int, options: FSharpProjectOptions, filePath: string, textVersionHash: int) = async {
         let! parseResults = FSharpLanguageService.Checker.ParseFileInProject(filePath, sourceText.ToString(), options)
@@ -138,8 +85,7 @@ type internal FSharpCompletionProvider(workspace: Workspace, serviceProvider: SV
 
         return results
     }
-
-
+    
     override this.ShouldTriggerCompletion(sourceText: SourceText, caretPosition: int, trigger: CompletionTrigger, _: OptionSet) =
         let getInfo() = 
             let documentId = workspace.GetDocumentIdInCurrentContext(sourceText.Container)
@@ -151,7 +97,7 @@ type internal FSharpCompletionProvider(workspace: Workspace, serviceProvider: SV
                 | Some(options) -> CompilerEnvironment.GetCompilationDefinesForEditing(document.Name, options.OtherOptions |> Seq.toList)
             document.Id, document.FilePath, defines
 
-        FSharpCompletionProvider.ShouldTriggerCompletionAux(sourceText, caretPosition, trigger.Kind, getInfo)
+        Utils.shouldTriggerCompletionAux(sourceText, caretPosition, trigger.Kind, getInfo)
     
     override this.ProvideCompletionsAsync(context: Microsoft.CodeAnalysis.Completion.CompletionContext) =
         async {
