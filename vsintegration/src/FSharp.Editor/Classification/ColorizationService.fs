@@ -6,6 +6,7 @@ open System
 open System.Composition
 open System.Collections.Generic
 open System.Threading
+open System.Threading.Tasks
 open System.Runtime.CompilerServices
 
 open Microsoft.CodeAnalysis
@@ -16,6 +17,8 @@ open Microsoft.CodeAnalysis.Text
 
 open Microsoft.VisualStudio.FSharp.LanguageService
 open Microsoft.FSharp.Compiler.SourceCodeServices
+
+#nowarn "1182"
 
 [<ExportLanguageService(typeof<IEditorClassificationService>, FSharpCommonConstants.FSharpLanguageName)>]
 type internal FSharpColorizationService
@@ -29,16 +32,24 @@ type internal FSharpColorizationService
         member this.AddLexicalClassifications(_: SourceText, _: TextSpan, _: List<ClassifiedSpan>, _: CancellationToken) = ()
         
         member this.AddSyntacticClassificationsAsync(document: Document, textSpan: TextSpan, result: List<ClassifiedSpan>, cancellationToken: CancellationToken) =
-            async {
-                let defines = projectInfoManager.GetCompilationDefinesForEditingDocument(document)  
-                let! sourceText = document.GetTextAsync(cancellationToken)
-                result.AddRange(CommonHelpers.getColorizationData(document.Id, sourceText, textSpan, Some(document.FilePath), defines, cancellationToken))
-            } |> CommonRoslynHelpers.StartAsyncUnitAsTask cancellationToken
+            Task.CompletedTask
+            //async {
+            //    let defines = projectInfoManager.GetCompilationDefinesForEditingDocument(document)  
+            //    let! sourceText = document.GetTextAsync(cancellationToken)
+            //    result.AddRange(CommonHelpers.getColorizationData(document.Id, sourceText, textSpan, Some(document.FilePath), defines, cancellationToken))
+            //} |> CommonRoslynHelpers.StartAsyncUnitAsTask cancellationToken
 
         member this.AddSemanticClassificationsAsync(document: Document, textSpan: TextSpan, result: List<ClassifiedSpan>, cancellationToken: CancellationToken) =
             asyncMaybe {
                 let! options = projectInfoManager.TryGetOptionsForEditingDocumentOrProject(document)
                 let! sourceText = document.GetTextAsync(cancellationToken)
+                
+                // add syntactic classification
+                let defines = projectInfoManager.GetCompilationDefinesForEditingDocument(document)  
+                let! sourceText = document.GetTextAsync(cancellationToken)
+                result.AddRange(CommonHelpers.getColorizationData(document.Id, sourceText, textSpan, Some(document.FilePath), defines, cancellationToken))
+
+                // add semantic classification
                 let! _, checkResults = checkerProvider.Checker.ParseAndCheckDocument(document, options, sourceText) 
                 // it's crucial to not return duplicated or overlapping `ClassifiedSpan`s because Find Usages service crashes.
                 let colorizationData = checkResults.GetExtraColorizationsAlternate() |> Array.distinctBy fst
