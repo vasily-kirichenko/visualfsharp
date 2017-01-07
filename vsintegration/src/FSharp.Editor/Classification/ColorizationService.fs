@@ -7,6 +7,7 @@ open System.Composition
 open System.Collections.Generic
 open System.Threading
 open System.Runtime.CompilerServices
+open System.Diagnostics
 
 open Microsoft.CodeAnalysis
 open Microsoft.CodeAnalysis.Classification
@@ -30,9 +31,20 @@ type internal FSharpColorizationService
         
         member this.AddSyntacticClassificationsAsync(document: Document, textSpan: TextSpan, result: List<ClassifiedSpan>, cancellationToken: CancellationToken) =
             async {
+                let mutable times = Map.empty
+                let sw = Stopwatch.StartNew()
                 let defines = projectInfoManager.GetCompilationDefinesForEditingDocument(document)  
+                times <- times |> Map.add "defines" sw.ElapsedMilliseconds
+                sw.Restart()
                 let! sourceText = document.GetTextAsync(cancellationToken)
+                times <- times |> Map.add "source text" sw.ElapsedMilliseconds
+                sw.Restart()
                 result.AddRange(CommonHelpers.getColorizationData(document.Id, sourceText, textSpan, Some(document.FilePath), defines, cancellationToken))
+                times <- times |> Map.add "get data" sw.ElapsedMilliseconds
+                let lines = sourceText.Lines
+                let startLine = lines.GetLineFromPosition(textSpan.Start).LineNumber
+                let endLine = lines.GetLineFromPosition(textSpan.End).LineNumber
+                Logging.Logging.logInfof "SyntacticClassification (lines %d..%d): %A" startLine endLine times
             } |> CommonRoslynHelpers.StartAsyncUnitAsTask cancellationToken
 
         member this.AddSemanticClassificationsAsync(document: Document, textSpan: TextSpan, result: List<ClassifiedSpan>, cancellationToken: CancellationToken) =
