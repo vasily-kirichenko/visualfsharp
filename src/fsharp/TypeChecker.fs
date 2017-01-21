@@ -283,7 +283,7 @@ type TcEnv =
 
       eCallerMemberName : string option
     } 
-    member tenv.DisplayEnv = tenv.eNameResEnv.DisplayEnv
+    member tenv.DisplayEnv = tenv.eNameResEnv.eDisplayEnv
     member tenv.NameEnv = tenv.eNameResEnv
     member tenv.AccessRights = tenv.eAccessRights
 

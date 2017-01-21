@@ -82,6 +82,29 @@ type FieldResolution = FieldResolution of RecdFieldRef * bool
 [<Sealed>]
 type ExtensionMember 
 
+[<Interface>]
+type INameResolutionEnv =
+    abstract DisplayEnv: DisplayEnv 
+    abstract UnqualifiedItems: System.Collections.Generic.IDictionary<string, Item>
+    abstract PatItems: NameMap<Item>
+    abstract ModulesAndNamespacesImpl:  NameMultiMap<Tast.ModuleOrNamespaceRef>
+    abstract FullyQualifiedModulesAndNamespaces:  NameMultiMap<Tast.ModuleOrNamespaceRef>
+    abstract FieldLabels: NameMultiMap<Tast.RecdFieldRef>
+    abstract TyconsByAccessNamesImpl: LayeredMultiMap<string,TyconRef>
+    abstract FullyQualifiedTyconsByAccessNames: LayeredMultiMap<string,TyconRef>
+    abstract TyconsByDemangledNameAndArityImpl: LayeredMap<NameArityPair,TyconRef>
+    abstract FullyQualifiedTyconsByDemangledNameAndArity: LayeredMap<NameArityPair,TyconRef>
+    abstract IndexedExtensionMembers: TyconRefMultiMap<ExtensionMember>
+    abstract UnindexedExtensionMembers: ExtensionMember list
+    abstract Typars: NameMap<Typar>
+  
+//[<AutoOpen>]
+//module NameResolutionEnvExtensions =
+//    type INameResolutionEnv with
+//        member TyconsByDemangledNameAndArity: FullyQualifiedFlag -> LayeredMap<NameArityPair,TyconRef>
+//        member TyconsByAccessNames: FullyQualifiedFlag -> LayeredMultiMap<string,TyconRef>
+//        member ModulesAndNamespaces: FullyQualifiedFlag -> NameMultiMap<Tast.ModuleOrNamespaceRef>
+
 /// The environment of information used to resolve names
 [<NoEquality; NoComparison>]
 type NameResolutionEnv =
@@ -99,8 +122,25 @@ type NameResolutionEnv =
      eUnindexedExtensionMembers: ExtensionMember list
      eTypars: NameMap<Typar> }
     static member Empty : g:TcGlobals -> NameResolutionEnv
-    member DisplayEnv : DisplayEnv
-    member FindUnqualifiedItem : string -> Item
+    interface INameResolutionEnv
+
+[<NoEquality; NoComparison>]
+type ServiceNameResolutionEnv =
+    {eDisplayEnv: DisplayEnv
+     eUnqualifiedItems: System.Collections.Generic.Dictionary<string,Item>
+     ePatItems: NameMap<Item>
+     eModulesAndNamespaces: NameMultiMap<ModuleOrNamespaceRef>
+     eFullyQualifiedModulesAndNamespaces: NameMultiMap<ModuleOrNamespaceRef>
+     eFieldLabels: NameMultiMap<RecdFieldRef>
+     eTyconsByAccessNames: LayeredMultiMap<string,TyconRef>
+     eFullyQualifiedTyconsByAccessNames: LayeredMultiMap<string,TyconRef>
+     eTyconsByDemangledNameAndArity: LayeredMap<NameArityPair,TyconRef>
+     eFullyQualifiedTyconsByDemangledNameAndArity: LayeredMap<NameArityPair,TyconRef>
+     eIndexedExtensionMembers: TyconRefMultiMap<ExtensionMember>
+     eUnindexedExtensionMembers: ExtensionMember list
+     eTypars: NameMap<Typar> }
+    static member FromNameResolutionEnv: INameResolutionEnv -> ServiceNameResolutionEnv
+    interface INameResolutionEnv
 
 type FullyQualifiedFlag =
   | FullyQualified
@@ -110,7 +150,7 @@ type FullyQualifiedFlag =
 type BulkAdd = Yes | No
 
 /// Lookup patterns in name resolution environment
-val internal TryFindPatternByName : string -> NameResolutionEnv -> Item option
+val internal TryFindPatternByName : string -> INameResolutionEnv -> Item option
 
 /// Add extra items to the environment for Visual Studio, e.g. static members 
 val internal AddFakeNamedValRefToNameEnv : string -> NameResolutionEnv -> ValRef -> NameResolutionEnv
@@ -152,7 +192,7 @@ type CheckForDuplicateTyparFlag =
 val internal AddDeclaredTyparsToNameEnv : CheckForDuplicateTyparFlag -> NameResolutionEnv -> Typar list -> NameResolutionEnv
 
 /// Qualified lookup of type names in the environment
-val internal LookupTypeNameInEnvNoArity : FullyQualifiedFlag -> string -> NameResolutionEnv -> TyconRef list
+val internal LookupTypeNameInEnvNoArity : FullyQualifiedFlag -> string -> INameResolutionEnv -> TyconRef list
 
 /// Indicates whether we are resolving type names to type definitions or to constructor methods.
 type TypeNameResolutionFlag =
@@ -208,7 +248,7 @@ type internal CapturedNameResolution =
     member DisplayEnv : DisplayEnv
 
     /// Naming environment--for example, currently open namespaces.
-    member NameResolutionEnv : NameResolutionEnv
+    member NameResolutionEnv : INameResolutionEnv
 
     /// The access rights of code at the location
     member AccessorDomain : AccessorDomain
@@ -221,11 +261,11 @@ type internal TcResolutions =
 
     /// Name resolution environments for every interesting region in the file. These regions may
     /// overlap, in which case the smallest region applicable should be used.
-    member CapturedEnvs : ResizeArray<range * NameResolutionEnv * AccessorDomain>
+    member CapturedEnvs : ResizeArray<range * INameResolutionEnv * AccessorDomain>
 
     /// Information of exact types found for expressions, that can be to the left of a dot.
     /// typ - the inferred type for an expression
-    member CapturedExpressionTypings : ResizeArray<pos * TType * DisplayEnv * NameResolutionEnv * AccessorDomain * range>
+    member CapturedExpressionTypings : ResizeArray<pos * TType * DisplayEnv * INameResolutionEnv * AccessorDomain * range>
 
     /// Exact name resolutions
     member CapturedNameResolutions : ResizeArray<CapturedNameResolution>
@@ -255,13 +295,13 @@ type internal TcSymbolUses =
 type ITypecheckResultsSink =
 
     /// Record that an environment is active over the given scope range
-    abstract NotifyEnvWithScope   : range * NameResolutionEnv * AccessorDomain -> unit
+    abstract NotifyEnvWithScope   : range * INameResolutionEnv * AccessorDomain -> unit
 
     /// Record that an expression has a specific type at the given range.
-    abstract NotifyExprHasType    : pos * TType * DisplayEnv * NameResolutionEnv * AccessorDomain * range -> unit
+    abstract NotifyExprHasType    : pos * TType * DisplayEnv * INameResolutionEnv * AccessorDomain * range -> unit
 
     /// Record that a name resolution occurred at a specific location in the source
-    abstract NotifyNameResolution : pos * Item * Item * ItemOccurence * DisplayEnv * NameResolutionEnv * AccessorDomain * range * bool -> unit
+    abstract NotifyNameResolution : pos * Item * Item * ItemOccurence * DisplayEnv * INameResolutionEnv * AccessorDomain * range * bool -> unit
 
     /// Record that a printf format specifier occurred at a specific location in the source
     abstract NotifyFormatSpecifierLocation : range -> unit
@@ -300,25 +340,25 @@ val internal WithNewTypecheckResultsSink : ITypecheckResultsSink * TcResultsSink
 val internal TemporarilySuspendReportingTypecheckResultsToSink : TcResultsSink -> System.IDisposable
 
 /// Report the active name resolution environment for a source range
-val internal CallEnvSink                : TcResultsSink -> range * NameResolutionEnv * AccessorDomain -> unit
+val internal CallEnvSink                : TcResultsSink -> range * INameResolutionEnv * AccessorDomain -> unit
 
 /// Report a specific name resolution at a source range
-val internal CallNameResolutionSink     : TcResultsSink -> range * NameResolutionEnv * Item * Item * ItemOccurence * DisplayEnv * AccessorDomain -> unit
+val internal CallNameResolutionSink     : TcResultsSink -> range * INameResolutionEnv * Item * Item * ItemOccurence * DisplayEnv * AccessorDomain -> unit
 
 /// Report a specific name resolution at a source range, replacing any previous resolutions
-val internal CallNameResolutionSinkReplacing     : TcResultsSink -> range * NameResolutionEnv * Item * Item * ItemOccurence * DisplayEnv * AccessorDomain -> unit
+val internal CallNameResolutionSinkReplacing     : TcResultsSink -> range * INameResolutionEnv * Item * Item * ItemOccurence * DisplayEnv * AccessorDomain -> unit
 
 /// Report a specific name resolution at a source range
-val internal CallExprHasTypeSink        : TcResultsSink -> range * NameResolutionEnv * TType * DisplayEnv * AccessorDomain -> unit
+val internal CallExprHasTypeSink        : TcResultsSink -> range * INameResolutionEnv * TType * DisplayEnv * AccessorDomain -> unit
 
 /// Get all the available properties of a type (both intrinsic and extension)
-val internal AllPropInfosOfTypeInScope : InfoReader -> NameResolutionEnv -> string option * AccessorDomain -> FindMemberFlag -> range -> TType -> PropInfo list
+val internal AllPropInfosOfTypeInScope : InfoReader -> INameResolutionEnv -> string option * AccessorDomain -> FindMemberFlag -> range -> TType -> PropInfo list
 
 /// Get all the available properties of a type (only extension)
-val internal ExtensionPropInfosOfTypeInScope : InfoReader -> NameResolutionEnv -> string option * AccessorDomain  -> range -> TType -> PropInfo list
+val internal ExtensionPropInfosOfTypeInScope : InfoReader -> INameResolutionEnv -> string option * AccessorDomain  -> range -> TType -> PropInfo list
 
 /// Get the available methods of a type (both declared and inherited)
-val internal AllMethInfosOfTypeInScope : InfoReader -> NameResolutionEnv -> string option * AccessorDomain -> FindMemberFlag -> range -> TType -> MethInfo list
+val internal AllMethInfosOfTypeInScope : InfoReader -> INameResolutionEnv -> string option * AccessorDomain -> FindMemberFlag -> range -> TType -> MethInfo list
 
 /// Used to report an error condition where name resolution failed due to an indeterminate type
 exception internal IndeterminateType of range
@@ -358,31 +398,31 @@ type ResultCollectionSettings =
 | AtMostOneResult
 
 /// Resolve a long identifier to a namespace or module.
-val internal ResolveLongIndentAsModuleOrNamespace   : ResultCollectionSettings -> Import.ImportMap -> range -> FullyQualifiedFlag -> NameResolutionEnv -> AccessorDomain -> Ident list -> ResultOrException<(int * ModuleOrNamespaceRef * ModuleOrNamespaceType) list >
+val internal ResolveLongIndentAsModuleOrNamespace   : ResultCollectionSettings -> Import.ImportMap -> range -> FullyQualifiedFlag -> INameResolutionEnv -> AccessorDomain -> Ident list -> ResultOrException<(int * ModuleOrNamespaceRef * ModuleOrNamespaceType) list >
 
 /// Resolve a long identifier to an object constructor.
 val internal ResolveObjectConstructor               : NameResolver -> DisplayEnv -> range -> AccessorDomain -> TType -> ResultOrException<Item>
 
 /// Resolve a long identifier using type-qualified name resolution.
-val internal ResolveLongIdentInType                 : TcResultsSink -> NameResolver -> NameResolutionEnv -> LookupKind -> range -> AccessorDomain -> Ident list -> FindMemberFlag -> TypeNameResolutionInfo -> TType -> Item * Ident list
+val internal ResolveLongIdentInType                 : TcResultsSink -> NameResolver -> INameResolutionEnv -> LookupKind -> range -> AccessorDomain -> Ident list -> FindMemberFlag -> TypeNameResolutionInfo -> TType -> Item * Ident list
 
 /// Resolve a long identifier when used in a pattern.
-val internal ResolvePatternLongIdent                : TcResultsSink -> NameResolver -> WarnOnUpperFlag -> bool -> range -> AccessorDomain -> NameResolutionEnv -> TypeNameResolutionInfo -> Ident list -> Item
+val internal ResolvePatternLongIdent                : TcResultsSink -> NameResolver -> WarnOnUpperFlag -> bool -> range -> AccessorDomain -> INameResolutionEnv -> TypeNameResolutionInfo -> Ident list -> Item
 
 /// Resolve a long identifier representing a type name 
-val internal ResolveTypeLongIdentInTyconRef         : TcResultsSink -> NameResolver -> NameResolutionEnv -> TypeNameResolutionInfo -> AccessorDomain -> range -> ModuleOrNamespaceRef -> Ident list -> TyconRef 
+val internal ResolveTypeLongIdentInTyconRef         : TcResultsSink -> NameResolver -> INameResolutionEnv -> TypeNameResolutionInfo -> AccessorDomain -> range -> ModuleOrNamespaceRef -> Ident list -> TyconRef 
 
 /// Resolve a long identifier to a type definition
-val internal ResolveTypeLongIdent                   : TcResultsSink -> NameResolver -> ItemOccurence -> FullyQualifiedFlag -> NameResolutionEnv -> AccessorDomain -> Ident list -> TypeNameResolutionStaticArgsInfo -> PermitDirectReferenceToGeneratedType -> ResultOrException<TyconRef>
+val internal ResolveTypeLongIdent                   : TcResultsSink -> NameResolver -> ItemOccurence -> FullyQualifiedFlag -> INameResolutionEnv -> AccessorDomain -> Ident list -> TypeNameResolutionStaticArgsInfo -> PermitDirectReferenceToGeneratedType -> ResultOrException<TyconRef>
 
 /// Resolve a long identifier to a field
-val internal ResolveField                           : TcResultsSink -> NameResolver -> NameResolutionEnv -> AccessorDomain -> TType -> Ident list * Ident -> Ident list -> FieldResolution list
+val internal ResolveField                           : TcResultsSink -> NameResolver -> INameResolutionEnv -> AccessorDomain -> TType -> Ident list * Ident -> Ident list -> FieldResolution list
 
 /// Resolve a long identifier occurring in an expression position
-val internal ResolveExprLongIdent                   : TcResultsSink -> NameResolver -> range -> AccessorDomain -> NameResolutionEnv -> TypeNameResolutionInfo -> Ident list -> Item * Ident list
+val internal ResolveExprLongIdent                   : TcResultsSink -> NameResolver -> range -> AccessorDomain -> INameResolutionEnv -> TypeNameResolutionInfo -> Ident list -> Item * Ident list
 
 /// Resolve a (possibly incomplete) long identifier to a loist of possible class or record fields
-val internal ResolvePartialLongIdentToClassOrRecdFields : NameResolver -> NameResolutionEnv -> range -> AccessorDomain -> string list -> bool -> Item list
+val internal ResolvePartialLongIdentToClassOrRecdFields : NameResolver -> INameResolutionEnv -> range -> AccessorDomain -> string list -> bool -> Item list
 
 /// Return the fields for the given class or record
 val internal ResolveRecordOrClassFieldsOfType       : NameResolver -> range -> AccessorDomain -> TType -> bool -> Item list
@@ -403,16 +443,16 @@ type AfterOverloadResolution =
     |   ReplaceWithOverrideAndSendToSink of Item * (Item -> unit) * IfOverloadResolutionFails // overload resolution failure fallback
 
 /// Resolve a long identifier occurring in an expression position.
-val internal ResolveLongIdentAsExprAndComputeRange  : TcResultsSink -> NameResolver -> range -> AccessorDomain -> NameResolutionEnv -> TypeNameResolutionInfo -> Ident list -> Item * range * Ident list * AfterOverloadResolution
+val internal ResolveLongIdentAsExprAndComputeRange  : TcResultsSink -> NameResolver -> range -> AccessorDomain -> INameResolutionEnv -> TypeNameResolutionInfo -> Ident list -> Item * range * Ident list * AfterOverloadResolution
 
 /// Resolve a long identifier occurring in an expression position, qualified by a type.
-val internal ResolveExprDotLongIdentAndComputeRange : TcResultsSink -> NameResolver -> range -> AccessorDomain -> NameResolutionEnv -> TType -> Ident list -> FindMemberFlag -> bool -> Item * range * Ident list * AfterOverloadResolution
+val internal ResolveExprDotLongIdentAndComputeRange : TcResultsSink -> NameResolver -> range -> AccessorDomain -> INameResolutionEnv -> TType -> Ident list -> FindMemberFlag -> bool -> Item * range * Ident list * AfterOverloadResolution
 
 /// A generator of type instantiations used when no more specific type instantiation is known.
 val FakeInstantiationGenerator : range -> Typar list -> TType list
 
 /// Resolve a (possibly incomplete) long identifier to a set of possible resolutions.
-val ResolvePartialLongIdent : NameResolver -> NameResolutionEnv -> (MethInfo -> TType -> bool) -> range -> AccessorDomain -> string list -> bool -> Item list
+val ResolvePartialLongIdent : NameResolver -> INameResolutionEnv -> (MethInfo -> TType -> bool) -> range -> AccessorDomain -> string list -> bool -> Item list
 
 [<RequireQualifiedAccess>]
 type ResolveCompletionTargets =
@@ -420,8 +460,8 @@ type ResolveCompletionTargets =
     | SettablePropertiesAndFields
 
 /// Resolve a (possibly incomplete) long identifier to a set of possible resolutions, qualified by type.
-val ResolveCompletionsInType       : NameResolver -> NameResolutionEnv -> ResolveCompletionTargets -> Range.range -> AccessorDomain -> bool -> TType -> Item list
+val ResolveCompletionsInType       : NameResolver -> INameResolutionEnv -> ResolveCompletionTargets -> Range.range -> AccessorDomain -> bool -> TType -> Item list
 
-val GetVisibleNamespacesAndModulesAtPoint : NameResolver -> NameResolutionEnv -> range -> AccessorDomain -> ModuleOrNamespaceRef list
+val GetVisibleNamespacesAndModulesAtPoint : NameResolver -> INameResolutionEnv -> range -> AccessorDomain -> ModuleOrNamespaceRef list
 
-val IsItemResolvable : NameResolver -> NameResolutionEnv -> range -> AccessorDomain -> string list -> Item -> bool
+val IsItemResolvable : NameResolver -> INameResolutionEnv -> range -> AccessorDomain -> string list -> Item -> bool

@@ -496,7 +496,7 @@ type TypeCheckInfo
            sResolutions: TcResolutions,
            sSymbolUses: TcSymbolUses,
            // This is a name resolution environment to use if no better match can be found.
-           sFallback: NameResolutionEnv,
+           sFallback: INameResolutionEnv,
            loadClosure : LoadClosure option,
            reactorOps : IReactorOperations,
            checkAlive : (unit -> bool),
@@ -518,7 +518,7 @@ type TypeCheckInfo
     let ncenv = new NameResolver(g,amap,infoReader,NameResolution.FakeInstantiationGenerator)
     
     /// Find the most precise naming environment for the given line and column
-    let GetBestEnvForPos (envsByLine: ResizeArray<range * NameResolutionEnv * AccessorDomain> []) (cursorPos: pos) =
+    let GetBestEnvForPos (envsByLine: ResizeArray<range * INameResolutionEnv * AccessorDomain> []) (cursorPos: pos) =
         
         let getEnvsOnLine line =    
             if line < 0 then ResizeArray()
@@ -801,7 +801,7 @@ type TypeCheckInfo
                 if textChanged then GetPreciseCompletionListFromExprTypingsResult.NoneBecauseTypecheckIsStaleAndTextChanged
                 else GetPreciseCompletionListFromExprTypingsResult.None
 
-    let GetEnvsByLine() : ResizeArray<range * NameResolutionEnv * AccessorDomain> [] =
+    let GetEnvsByLine() : ResizeArray<range * INameResolutionEnv * AccessorDomain> [] =
         let maxLine = sResolutions.CapturedEnvs |> Seq.maxBy (fun (m, _, _) -> m.EndLine) |> fun (m, _, _) -> m.EndLine
         let envsByLine = Array.init (maxLine + 1) (fun _ -> ResizeArray())
         for (m,_,_) as env in sResolutions.CapturedEnvs do
@@ -1141,7 +1141,7 @@ type TypeCheckInfo
         NameResolution.GetVisibleNamespacesAndModulesAtPoint ncenv nenv m ad
 
 
-    member x.IsRelativeNameResolvable(cursorPos: pos, plid: string list, item: Item, envsByLine: ResizeArray<range * NameResolutionEnv * AccessorDomain> []) : bool =
+    member x.IsRelativeNameResolvable(cursorPos: pos, plid: string list, item: Item, envsByLine: ResizeArray<range * INameResolutionEnv * AccessorDomain> []) : bool =
         /// Find items in the best naming environment.
         let (nenv, ad), m = GetBestEnvForPos envsByLine cursorPos
         NameResolution.IsItemResolvable ncenv nenv m ad plid item
@@ -2079,10 +2079,10 @@ type FSharpCheckFileResults(errors: FSharpErrorInfo[], scopeOptX: TypeCheckInfo 
     member info.GetVisibleNamespacesAndModulesAtPoint(pos: pos) : Async<ModuleOrNamespaceRef []> = 
         reactorOp "GetDeclarations" [| |] (fun scope -> scope.GetVisibleNamespacesAndModulesAtPosition(pos) |> List.toArray)
 
-    member info.GetNameResolutionEnvironmentsByLine() : Async<ResizeArray<range * NameResolutionEnv * AccessorDomain> []> = 
+    member info.GetNameResolutionEnvironmentsByLine() : Async<ResizeArray<range * INameResolutionEnv * AccessorDomain> []> = 
         reactorOp "IsRelativeNameResolvable" [||] (fun scope -> scope.GetNameResolutionEnvironmentsByLine())
 
-    member info.IsRelativeNameResolvable(pos: pos, plid: string list, item: Item, nenvsByLine: ResizeArray<range * NameResolutionEnv * AccessorDomain> []) : Async<bool> = 
+    member info.IsRelativeNameResolvable(pos: pos, plid: string list, item: Item, nenvsByLine: ResizeArray<range * INameResolutionEnv * AccessorDomain> []) : Async<bool> = 
         reactorOp "IsRelativeNameResolvable" true (fun scope -> scope.IsRelativeNameResolvable(pos, plid, item, nenvsByLine))
     
 //----------------------------------------------------------------------------

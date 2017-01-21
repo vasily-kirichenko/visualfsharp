@@ -1150,7 +1150,7 @@ type internal FsiDynamicCompiler
         // Evaluate the overall definitions.
         let istate = fsiDynamicCompiler.EvalParsedDefinitions (errorLogger, istate, false, true, defs)
         // Snarf the type for 'it' via the binding
-        match istate.tcState.TcEnvFromImpls.NameEnv.FindUnqualifiedItem itName with 
+        match (istate.tcState.TcEnvFromImpls.NameEnv :> INameResolutionEnv).UnqualifiedItems.[itName] with
         | NameResolution.Item.Value vref -> 
              if not tcConfig.noFeedback then 
                  valuePrinter.InvokeExprPrinter (istate.tcState.TcEnvFromImpls.DisplayEnv, istate.emEnv, istate.ilxGenerator, vref.Deref)

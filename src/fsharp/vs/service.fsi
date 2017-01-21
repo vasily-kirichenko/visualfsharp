@@ -286,9 +286,9 @@ type internal FSharpCheckFileResults =
 
     member GetVisibleNamespacesAndModulesAtPoint : pos -> Async<Tast.ModuleOrNamespaceRef[]>
 
-    member IsRelativeNameResolvable: cursorPos : pos * plid : string list * item: Item * ResizeArray<range * NameResolutionEnv * AccessorDomain> [] -> Async<bool>
+    member IsRelativeNameResolvable: cursorPos : pos * plid : string list * item: Item * ResizeArray<range * INameResolutionEnv * AccessorDomain> [] -> Async<bool>
 
-    member GetNameResolutionEnvironmentsByLine : unit -> Async<ResizeArray<range * NameResolutionEnv * AccessorDomain> []>
+    member GetNameResolutionEnvironmentsByLine : unit -> Async<ResizeArray<range * INameResolutionEnv * AccessorDomain> []>
 
 /// A handle to the results of CheckFileInProject.
 [<Sealed>]
