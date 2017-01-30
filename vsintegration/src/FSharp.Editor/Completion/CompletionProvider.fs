@@ -38,8 +38,6 @@ open Microsoft.FSharp.Compiler.SourceCodeServices.ItemDescriptionIcons
 open Microsoft.VisualStudio.FSharp.Editor.Logging
 open System.Diagnostics
 
-#nowarn "1182"
-
 type internal FSharpCompletionProvider
     (
         workspace: Workspace,
@@ -178,34 +176,3 @@ type internal FSharpCompletionProvider
             | _ -> item.DisplayText
 
         Task.FromResult(CompletionChange.Create(new TextChange(item.Span, nameInCode)))
-
-type internal FSharpCompletionService
-    (
-        workspace: Workspace,
-        serviceProvider: SVsServiceProvider,
-        checkerProvider: FSharpCheckerProvider,
-        projectInfoManager: ProjectInfoManager
-    ) =
-    inherit CompletionServiceWithProviders(workspace)
-
-    let builtInProviders = ImmutableArray.Create<CompletionProvider>(FSharpCompletionProvider(workspace, serviceProvider, checkerProvider, projectInfoManager))
-    let completionRules = CompletionRules.Default.WithDismissIfEmpty(true).WithDismissIfLastCharacterDeleted(true).WithDefaultEnterKeyRule(EnterKeyRule.Never)
-
-    override this.Language = FSharpCommonConstants.FSharpLanguageName
-    override this.GetBuiltInProviders() = builtInProviders
-    override this.GetRules() = completionRules
-
-[<Shared>]
-[<ExportLanguageServiceFactory(typeof<CompletionService>, FSharpCommonConstants.FSharpLanguageName)>]
-type internal FSharpCompletionServiceFactory 
-    [<ImportingConstructor>] 
-    (
-        serviceProvider: SVsServiceProvider,
-        checkerProvider: FSharpCheckerProvider,
-        projectInfoManager: ProjectInfoManager
-    ) =
-    interface ILanguageServiceFactory with
-        member this.CreateLanguageService(hostLanguageServices: HostLanguageServices) : ILanguageService =
-            upcast new FSharpCompletionService(hostLanguageServices.WorkspaceServices.Workspace, serviceProvider, checkerProvider, projectInfoManager)
-
-
