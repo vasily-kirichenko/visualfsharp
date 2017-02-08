@@ -1659,6 +1659,8 @@ module internal Parser =
     /// Indicates if the type check got aborted because it is no longer relevant.
     type TypeCheckAborted = Yes | No of TypeCheckInfo
 
+    let logLock = obj()
+
     // Type check a single file against an initial context, gleaning both errors and intellisense information.
     let TypeCheckOneFile
           (parseResults: FSharpParseFileResults,
@@ -1772,9 +1774,11 @@ module internal Parser =
                             // Typecheck is potentially a long running operation. We chop it up here with an Eventually continuation and, at each slice, give a chance
                             // for the client to claim the result as obsolete and have the typecheck abort.
                             let projectDir = Path.GetDirectoryName(projectFileName)
-                            let capturingErrorLogger = CompilationErrorLogger("TypeCheckOneFile", tcConfig)
+                            let capturingErrorLogger = CompilationErrorLogger("--> TypeCheckOneFile", tcConfig)
                             let errorLogger = GetErrorLoggerFilteringByScopedPragmas(false,GetScopedPragmasForInput(parsedMainInput), capturingErrorLogger)
                             
+                            lock logLock <| fun _ -> File.AppendAllText (@"e:\typecheckonefile.txt", sprintf "%O TypeCheckOneFile (%s)\n" DateTime.Now mainInputFileName)
+                            let sw = Diagnostics.Stopwatch.StartNew()
                             let! result = 
                                 TypeCheckOneInputAndFinishEventually(checkForErrors,tcConfig, tcImports, tcGlobals, None, TcResultsSink.WithSink sink, tcState, parsedMainInput)
                                 |> Eventually.repeatedlyProgressUntilDoneOrTimeShareOverOrCanceled 50L ct (fun f -> f())
@@ -1785,7 +1789,9 @@ module internal Parser =
                                                 // Reinstall the compilation globals each time we start or restart
                                                 use unwind = new CompilationGlobalsScope (errorLogger, BuildPhase.TypeCheck, projectDir)
                                                 work()))
-                             
+                            
+                            lock logLock <| fun _ -> File.AppendAllText (@"e:\typecheckonefile.txt", sprintf "%O <-- TypeCheckOneFile (%s), %O elapsed\n" DateTime.Now mainInputFileName sw.Elapsed)
+
                             return result |> Option.map (fun ((tcEnvAtEnd, _, typedImplFiles), tcState) -> tcEnvAtEnd, typedImplFiles, tcState)
                         with
                         | e ->
