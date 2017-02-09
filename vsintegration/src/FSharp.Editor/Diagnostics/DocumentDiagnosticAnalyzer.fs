@@ -20,11 +20,19 @@ open Microsoft.FSharp.Compiler.SourceCodeServices
 open Microsoft.FSharp.Compiler.Range
 
 open Microsoft.VisualStudio.FSharp.LanguageService
+open System.Runtime.CompilerServices
 
 [<RequireQualifiedAccess>]
 type internal DiagnosticsType =
     | Syntax
     | Semantic
+
+module private Log =
+    let private logLock = obj()
+    
+    let log fileName msg =
+        Printf.kprintf (fun s ->
+            lock logLock <| fun _ -> System.IO.File.AppendAllText (@"e:\DocumentDiagnosticAnalyzer.txt", sprintf "%O %s %s\n" DateTime.Now fileName s)) msg
 
 [<DiagnosticAnalyzer(FSharpCommonConstants.FSharpLanguageName)>]
 type internal FSharpDocumentDiagnosticAnalyzer() =
@@ -61,7 +69,10 @@ type internal FSharpDocumentDiagnosticAnalyzer() =
                 hash 
         }
 
-    static member GetDiagnostics(checker: FSharpChecker, filePath: string, sourceText: SourceText, textVersionHash: int, options: FSharpProjectOptions, diagnosticType: DiagnosticsType) = 
+    let diagnosticsTable = ConditionalWeakTable<DocumentId * int * DiagnosticsType * FSharpProjectOptions, Diagnostic[]>()
+
+    static member GetDiagnostics(checker: FSharpChecker, filePath: string, sourceText: SourceText, textVersionHash: int, options: FSharpProjectOptions, 
+                                 diagnosticType: DiagnosticsType) = 
         async {
             let! parseResults = checker.ParseFileInProject(filePath, sourceText.ToString(), options) 
             let! errors = 
@@ -80,9 +91,9 @@ type internal FSharpDocumentDiagnosticAnalyzer() =
                         return parseResults.Errors
                 }
             
-            let results = 
-              (HashSet(errors, errorInfoEqualityComparer)
-               |> Seq.choose(fun error ->
+            return
+                HashSet(errors, errorInfoEqualityComparer)
+                |> Seq.choose(fun error ->
                     if error.StartLineAlternate = 0 || error.EndLineAlternate = 0 then
                         // F# error line numbers are one-based. Compiler returns 0 for global errors (reported by ProjectDiagnosticAnalyzer)
                         None
@@ -104,9 +115,26 @@ type internal FSharpDocumentDiagnosticAnalyzer() =
                         
                         let location = Location.Create(filePath, correctedTextSpan , linePositionSpan)
                         Some(CommonRoslynHelpers.ConvertError(error, location)))
-                  ).ToImmutableArray()
-            return results
+                 |> Seq.toArray
         }
+
+    static member GetDiagnosticsWithCache(checker: FSharpChecker, document: Document, textVersionHash: int, options: FSharpProjectOptions, 
+                                          diagnosticType: DiagnosticsType, table: ConditionalWeakTable<DocumentId * int * DiagnosticsType * FSharpProjectOptions, Diagnostic[]>) =
+        let key = (document.Id, textVersionHash, diagnosticType, options)                                       
+        match table.TryGetValue key with
+        | true, diagnostics ->
+            Log.log document.FilePath "Returning %d diagnostics from cache" diagnostics.Length
+            async.Return diagnostics
+        | _ ->
+            Log.log document.FilePath "NOT FOUND in cache, checking the file"
+            async {
+                let! cancellationToken = Async.CancellationToken
+                let! sourceText = document.GetTextAsync(cancellationToken)
+                let! diagnostics = FSharpDocumentDiagnosticAnalyzer.GetDiagnostics(checker, document.FilePath, sourceText, textVersionHash, options, diagnosticType)
+                table.Remove key |> ignore
+                table.Add(key, diagnostics)
+                return diagnostics
+            }
 
     override this.SupportedDiagnostics = CommonRoslynHelpers.SupportedDiagnostics()
 
@@ -114,11 +142,11 @@ type internal FSharpDocumentDiagnosticAnalyzer() =
         let projectInfoManager = getProjectInfoManager document
         asyncMaybe {
             let! options = projectInfoManager.TryGetOptionsForEditingDocumentOrProject(document)
-            let! sourceText = document.GetTextAsync(cancellationToken)
             let! textVersion = document.GetTextVersionAsync(cancellationToken)
-            return! 
-                FSharpDocumentDiagnosticAnalyzer.GetDiagnostics(getChecker document, document.FilePath, sourceText, textVersion.GetHashCode(), options, DiagnosticsType.Syntax)
+            let! diagnostics =
+                FSharpDocumentDiagnosticAnalyzer.GetDiagnosticsWithCache(getChecker document, document, textVersion.GetHashCode(), options, DiagnosticsType.Syntax, diagnosticsTable)
                 |> liftAsync
+            return diagnostics.ToImmutableArray()
         } 
         |> Async.map (Option.defaultValue ImmutableArray<Diagnostic>.Empty)
         |> CommonRoslynHelpers.StartAsyncAsTask cancellationToken
@@ -127,11 +155,11 @@ type internal FSharpDocumentDiagnosticAnalyzer() =
         let projectInfoManager = getProjectInfoManager document
         asyncMaybe {
             let! options = projectInfoManager.TryGetOptionsForDocumentOrProject(document) 
-            let! sourceText = document.GetTextAsync(cancellationToken)
             let! textVersion = document.GetTextVersionAsync(cancellationToken)
-            return! 
-                FSharpDocumentDiagnosticAnalyzer.GetDiagnostics(getChecker document, document.FilePath, sourceText, textVersion.GetHashCode(), options, DiagnosticsType.Semantic)
+            let! diagnostics =
+                FSharpDocumentDiagnosticAnalyzer.GetDiagnosticsWithCache(getChecker document, document, textVersion.GetHashCode(), options, DiagnosticsType.Semantic, diagnosticsTable)
                 |> liftAsync
+            return diagnostics.ToImmutableArray()
         }
         |> Async.map (Option.defaultValue ImmutableArray<Diagnostic>.Empty)
         |> CommonRoslynHelpers.StartAsyncAsTask cancellationToken
