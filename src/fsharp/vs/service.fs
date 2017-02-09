@@ -1485,6 +1485,13 @@ type TypeCheckInfo
     member x.CcuSig = ccuSig
     member x.ThisCcu = thisCcu
 
+module private TypeCheckLog =
+    let private logLock = obj()
+    
+    let log fileName msg =
+        Printf.kprintf (fun s ->
+            lock logLock <| fun _ -> File.AppendAllText (@"e:\typecheckonefile.txt", sprintf "%O %s %s\n" DateTime.Now fileName s)) msg
+
 module internal Parser = 
 
         // We'll need number of lines for adjusting error messages at EOF
@@ -1659,8 +1666,6 @@ module internal Parser =
     /// Indicates if the type check got aborted because it is no longer relevant.
     type TypeCheckAborted = Yes | No of TypeCheckInfo
 
-    let logLock = obj()
-
     // Type check a single file against an initial context, gleaning both errors and intellisense information.
     let TypeCheckOneFile
           (parseResults: FSharpParseFileResults,
@@ -1777,7 +1782,7 @@ module internal Parser =
                             let capturingErrorLogger = CompilationErrorLogger("--> TypeCheckOneFile", tcConfig)
                             let errorLogger = GetErrorLoggerFilteringByScopedPragmas(false,GetScopedPragmasForInput(parsedMainInput), capturingErrorLogger)
                             
-                            lock logLock <| fun _ -> File.AppendAllText (@"e:\typecheckonefile.txt", sprintf "%O TypeCheckOneFile (%s)\n" DateTime.Now mainInputFileName)
+                            TypeCheckLog.log mainInputFileName "--> TypeCheckOneFile"
                             let sw = Diagnostics.Stopwatch.StartNew()
                             let! result = 
                                 TypeCheckOneInputAndFinishEventually(checkForErrors,tcConfig, tcImports, tcGlobals, None, TcResultsSink.WithSink sink, tcState, parsedMainInput)
@@ -1790,7 +1795,7 @@ module internal Parser =
                                                 use unwind = new CompilationGlobalsScope (errorLogger, BuildPhase.TypeCheck, projectDir)
                                                 work()))
                             
-                            lock logLock <| fun _ -> File.AppendAllText (@"e:\typecheckonefile.txt", sprintf "%O <-- TypeCheckOneFile (%s), %O elapsed\n" DateTime.Now mainInputFileName sw.Elapsed)
+                            TypeCheckLog.log mainInputFileName "<-- TypeCheckOneFile, %O elapsed\n" sw.Elapsed
 
                             return result |> Option.map (fun ((tcEnvAtEnd, _, typedImplFiles), tcState) -> tcEnvAtEnd, typedImplFiles, tcState)
                         with
@@ -2447,8 +2452,11 @@ type BackgroundCompiler(referenceResolver, projectCacheSize, keepAssemblyContent
                             (fun _ -> bc.GetCachedCheckFileResult(builder, fileName, source, options)))
             
                     match cachedResults with
-                    | Some (_, checkResults) -> return FSharpCheckFileAnswer.Succeeded checkResults
-                    | None ->
+                    | Some (_, checkResults) ->
+                        TypeCheckLog.log fileName "CheckOneFile, got cached results, file version = %d" fileVersion
+                        return FSharpCheckFileAnswer.Succeeded checkResults
+                    | None -> 
+                        TypeCheckLog.log fileName "CheckOneFile, NO CACHED results, file version = %d" fileVersion
                         if beingCheckedFileTable.TryAdd(beingCheckedFileKey, ()) then
                             try
                                 // Get additional script #load closure information if applicable.
@@ -2459,6 +2467,7 @@ type BackgroundCompiler(referenceResolver, projectCacheSize, keepAssemblyContent
                                                             tcPrior.TcState, loadClosure, tcPrior.Errors, reactorOps, (fun () -> builder.IsAlive), textSnapshotInfo)
                                 let checkAnswer = MakeCheckFileAnswer(tcFileResult, options, builder, creationErrors, parseResults.Errors, tcErrors)
                                 bc.RecordTypeCheckFileInProjectResults(fileName, options, parseResults, fileVersion, tcPrior.TimeStamp, Some checkAnswer, source)
+                                TypeCheckLog.log fileName "CheckOneFile, results have been recorded, file version = %d" fileVersion
                                 return checkAnswer
                             finally
                                 let dummy = ref ()
