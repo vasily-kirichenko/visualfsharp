@@ -38,8 +38,7 @@ type internal FSharpGoToDefinitionService
     [<ImportingConstructor>]
     (
         checkerProvider: FSharpCheckerProvider,
-        projectInfoManager: ProjectInfoManager,
-        [<ImportMany>]presenters: IEnumerable<INavigableItemsPresenter>
+        projectInfoManager: ProjectInfoManager
     ) =
 
     static member FindDefinition(checker: FSharpChecker, documentKey: DocumentId, sourceText: SourceText, filePath: string, position: int, defines: string list, options: FSharpProjectOptions, textVersionHash: int) : Async<Option<range>> = 
@@ -94,10 +93,12 @@ type internal FSharpGoToDefinitionService
             
             if definitionTask.Status = TaskStatus.RanToCompletion && definitionTask.Result.Any() then
                 let navigableItem = definitionTask.Result.First() // F# API provides only one INavigableItem
-                let workspace = document.Project.Solution.Workspace
+                let solution = document.Project.Solution
+                let workspace = solution.Workspace
                 let navigationService = workspace.Services.GetService<IDocumentNavigationService>()
-                ignore presenters
-                navigationService.TryNavigateToSpan(workspace, navigableItem.Document.Id, navigableItem.SourceSpan)
+                
+                navigationService.TryNavigateToSpan(workspace, navigableItem.Document.Id, navigableItem.SourceSpan,
+                    options = solution.Options.WithChangedOption(NavigationOptions.PreferProvisionalTab, true))
 
                 // FSROSLYNTODO: potentially display multiple results here
                 // If GotoDef returns one result then it should try to jump to a discovered location. If it returns multiple results then it should use 
