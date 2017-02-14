@@ -30,6 +30,7 @@ open Microsoft.VisualStudio.Text.Tagging
 open Microsoft.VisualStudio.Shell
 open Microsoft.VisualStudio.Shell.Interop
 
+open Microsoft.FSharp.Compiler
 open Microsoft.FSharp.Compiler.Parser
 open Microsoft.FSharp.Compiler.Range
 open Microsoft.FSharp.Compiler.SourceCodeServices
@@ -186,7 +187,7 @@ type internal FSharpCompletionService
         checkerProvider: FSharpCheckerProvider,
         projectInfoManager: ProjectInfoManager
     ) =
-    inherit CompletionServiceWithProviders(workspace)
+    inherit CommonCompletionService(workspace, Nullable())
 
     let builtInProviders = ImmutableArray.Create<CompletionProvider>(FSharpCompletionProvider(workspace, serviceProvider, checkerProvider, projectInfoManager))
     let completionRules = CompletionRules.Default.WithDismissIfEmpty(true).WithDismissIfLastCharacterDeleted(true).WithDefaultEnterKeyRule(EnterKeyRule.Never)
@@ -194,6 +195,9 @@ type internal FSharpCompletionService
     override this.Language = FSharpCommonConstants.FSharpLanguageName
     override this.GetBuiltInProviders() = builtInProviders
     override this.GetRules() = completionRules
+    
+    override this.GetDefaultCompletionListSpan(text, position) =
+        CommonCompletionUtilities.GetWordSpan(text, position, (fun x -> PrettyNaming.IsIdentifierFirstCharacter x), (fun x -> PrettyNaming.IsIdentifierPartCharacter x ))
 
 [<Shared>]
 [<ExportLanguageServiceFactory(typeof<CompletionService>, FSharpCommonConstants.FSharpLanguageName)>]
