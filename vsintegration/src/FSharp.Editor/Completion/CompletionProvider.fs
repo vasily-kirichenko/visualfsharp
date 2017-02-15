@@ -4,21 +4,16 @@ namespace Microsoft.VisualStudio.FSharp.Editor
 
 open System
 open System.Composition
-open System.Collections.Concurrent
 open System.Collections.Generic
 open System.Collections.Immutable
 open System.Threading
 open System.Threading.Tasks
-open System.Linq
 open System.Runtime.CompilerServices
 
 open Microsoft.CodeAnalysis
 open Microsoft.CodeAnalysis.Completion
 open Microsoft.CodeAnalysis.Classification
 open Microsoft.CodeAnalysis.Editor
-open Microsoft.CodeAnalysis.Editor.Implementation.Debugging
-open Microsoft.CodeAnalysis.Editor.Shared.Utilities
-open Microsoft.CodeAnalysis.Formatting
 open Microsoft.CodeAnalysis.Host
 open Microsoft.CodeAnalysis.Host.Mef
 open Microsoft.CodeAnalysis.Options
@@ -179,37 +174,6 @@ type internal FSharpCompletionProvider
             | _ -> item.DisplayText
 
         Task.FromResult(CompletionChange.Create(new TextChange(item.Span, nameInCode)))
-
-type internal FSharpCompletionService
-    (
-        workspace: Workspace,
-        serviceProvider: SVsServiceProvider,
-        checkerProvider: FSharpCheckerProvider,
-        projectInfoManager: ProjectInfoManager
-    ) =
-    inherit CommonCompletionService(workspace, Nullable())
-
-    let builtInProviders = ImmutableArray.Create<CompletionProvider>(FSharpCompletionProvider(workspace, serviceProvider, checkerProvider, projectInfoManager))
-    let completionRules = CompletionRules.Default.WithDismissIfEmpty(true).WithDismissIfLastCharacterDeleted(true).WithDefaultEnterKeyRule(EnterKeyRule.Never)
-
-    override this.Language = FSharpCommonConstants.FSharpLanguageName
-    override this.GetBuiltInProviders() = builtInProviders
-    override this.GetRules() = completionRules
     
     override this.GetDefaultCompletionListSpan(text, position) =
         CommonCompletionUtilities.GetWordSpan(text, position, (fun x -> PrettyNaming.IsIdentifierFirstCharacter x), (fun x -> PrettyNaming.IsIdentifierPartCharacter x ))
-
-[<Shared>]
-[<ExportLanguageServiceFactory(typeof<CompletionService>, FSharpCommonConstants.FSharpLanguageName)>]
-type internal FSharpCompletionServiceFactory 
-    [<ImportingConstructor>] 
-    (
-        serviceProvider: SVsServiceProvider,
-        checkerProvider: FSharpCheckerProvider,
-        projectInfoManager: ProjectInfoManager
-    ) =
-    interface ILanguageServiceFactory with
-        member this.CreateLanguageService(hostLanguageServices: HostLanguageServices) : ILanguageService =
-            upcast new FSharpCompletionService(hostLanguageServices.WorkspaceServices.Workspace, serviceProvider, checkerProvider, projectInfoManager)
-
-
