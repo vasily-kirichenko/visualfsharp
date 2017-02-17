@@ -31,7 +31,7 @@ open Microsoft.FSharp.Compiler.Ast
 type internal NavigationBarSymbolItem(text, glyph, spans, childItems) =
     inherit NavigationBarItem(text, glyph, spans, childItems)
 
-[<ExportLanguageService(typeof<INavigationBarItemService>, FSharpCommonConstants.FSharpLanguageName); Shared>]
+//[<ExportLanguageService(typeof<INavigationBarItemService>, FSharpCommonConstants.FSharpLanguageName); Shared>]
 type internal FSharpNavigationBarItemService
     [<ImportingConstructor>]
     (
@@ -44,6 +44,7 @@ type internal FSharpNavigationBarItemService
     interface INavigationBarItemService with
         member __.GetItemsAsync(document, cancellationToken) : Task<IList<NavigationBarItem>> = 
             asyncMaybe {
+                use! __ = Async.OnCancel(fun () -> System.Diagnostics.Debug.Assert false) |> liftAsync
                 let! options = projectInfoManager.TryGetOptionsForEditingDocumentOrProject(document)
                 let! sourceText = document.GetTextAsync(cancellationToken)
                 let! parsedInput = checkerProvider.Checker.ParseDocument(document, options, sourceText)

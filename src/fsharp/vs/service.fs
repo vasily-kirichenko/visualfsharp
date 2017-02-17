@@ -2228,7 +2228,14 @@ type BackgroundCompiler(referenceResolver, projectCacheSize, keepAssemblyContent
 
     /// CreateOneIncrementalBuilder (for background type checking). Note that fsc.fs also
     /// creates an incremental builder used by the command line compiler.
-    let CreateOneIncrementalBuilder (ctok, options:FSharpProjectOptions, ct) = 
+    let CreateOneIncrementalBuilder (ctok, options:FSharpProjectOptions, ct: CancellationToken) = 
+
+        let _ = ct.Register((fun () ->
+            Diagnostics.Debugger.Launch() |> ignore
+            //Diagnostics.Debug.Assert(false, "CreateOneIncrementalBuilder")
+            ), true)
+
+        System.Diagnostics.Debug.Assert(false, "CreateOneIncrementalBuilder")
 
         let projectReferences =  
             [ for (nm,opts) in options.ReferencedProjects ->

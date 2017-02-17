@@ -363,8 +363,8 @@ type internal FSharpSource(service:LanguageService, textLines, colorizer, vsFile
 
         member source.ResetFSharpIntelliSenseToAppearAdornment() =
             UIThread.MustBeCalledFromUIThread()
-            if source.CancellationTokenSource <> null && not source.CancellationTokenSource.IsCancellationRequested then
-                source.CancellationTokenSource.Cancel()
+            //if source.CancellationTokenSource <> null && not source.CancellationTokenSource.IsCancellationRequested then
+            //    source.CancellationTokenSource.Cancel()
             match source.FSharpIntelliSenseToAppearAdornment with
             | None -> ()
             | Some a -> 
