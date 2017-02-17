@@ -4301,7 +4301,11 @@ type TcImports(tcConfigP:TcConfigProvider, initialResolutions:TcAssemblyResoluti
                     (fun nm ->
                         try
                             Some(tcImports.RegisterAndPrepareToImportReferencedDll (ctok, nm))
-                        with e ->
+                        with
+                        | :? OperationCanceledException -> 
+                            Diagnostics.Debug.Assert(false, "RegisterAndImportReferencedAssemblies")
+                            None
+                        | e ->
                             errorR(Error(FSComp.SR.buildProblemReadingAssembly(nm.resolvedPath, e.Message),nm.originalReference.Range))
                             None)
                |> List.unzip

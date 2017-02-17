@@ -111,6 +111,7 @@ type internal FSharpBlockStructureService(checker: FSharpChecker, projectInfoMan
  
     override __.GetBlockStructureAsync(document, cancellationToken) : Task<BlockStructure> =
         asyncMaybe {
+            use! __ = Async.OnCancel(fun () -> System.Diagnostics.Debug.Assert false) |> liftAsync
             let! options = projectInfoManager.TryGetOptionsForEditingDocumentOrProject(document)
             let! sourceText = document.GetTextAsync(cancellationToken)
             let! parsedInput = checker.ParseDocument(document, options, sourceText)

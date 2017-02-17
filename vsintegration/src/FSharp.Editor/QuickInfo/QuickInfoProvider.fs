@@ -55,6 +55,7 @@ type internal FSharpQuickInfoProvider
     interface IQuickInfoProvider with
         override this.GetItemAsync(document: Document, position: int, cancellationToken: CancellationToken): Task<QuickInfoItem> =
             asyncMaybe {
+                use! __ = Async.OnCancel(fun () -> System.Diagnostics.Debug.Assert false) |> liftAsync
                 let! sourceText = document.GetTextAsync(cancellationToken)
                 let defines = projectInfoManager.GetCompilationDefinesForEditingDocument(document)  
                 let! _ = CommonHelpers.getSymbolAtPosition(document.Id, sourceText, position, document.FilePath, defines, SymbolLookupKind.Precise)

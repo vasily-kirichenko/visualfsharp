@@ -63,6 +63,8 @@ type internal FSharpDocumentDiagnosticAnalyzer() =
 
     static member GetDiagnostics(checker: FSharpChecker, filePath: string, sourceText: SourceText, textVersionHash: int, options: FSharpProjectOptions, diagnosticType: DiagnosticsType) = 
         async {
+            use! __ = Async.OnCancel(fun () -> System.Diagnostics.Debug.Assert false)
+
             let! parseResults = checker.ParseFileInProject(filePath, sourceText.ToString(), options) 
             let! errors = 
                 async {

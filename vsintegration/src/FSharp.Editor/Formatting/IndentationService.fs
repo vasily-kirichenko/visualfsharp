@@ -47,6 +47,7 @@ type internal FSharpIndentationService() =
     interface ISynchronousIndentationService with
         member this.GetDesiredIndentation(document: Document, lineNumber: int, cancellationToken: CancellationToken): Nullable<IndentationResult> =
             async {
+                 use! __ = Async.OnCancel(fun () -> System.Diagnostics.Debug.Assert false)
                  let! sourceText = document.GetTextAsync(cancellationToken)
                  let! options = document.GetOptionsAsync(cancellationToken)
                  let tabSize = options.GetOption(FormattingOptions.TabSize, FSharpCommonConstants.FSharpLanguageName)
