@@ -245,7 +245,7 @@ let rec ImportProvidedTypeAsILType (env:ImportMap) (m:range) (st:Tainted<Provide
             mkILBoxedType tspec
 
 /// Import a provided type as an F# type.
-let rec ImportProvidedType (env:ImportMap) (m:range) (* (tinst:TypeInst) *) (st:Tainted<ProvidedType>) = 
+let rec ImportProvidedType (env:ImportMap) (m:range) (* (tinst:TypeInst) *) (ct: CancellationToken) (st:Tainted<ProvidedType>) = 
 
     // Explanation: The two calls below represent am unchecked invariant of the hosted compiler: 
     // that type providers are only activated on the CompilationThread. This invariant is not currently checked 
@@ -258,13 +258,13 @@ let rec ImportProvidedType (env:ImportMap) (m:range) (* (tinst:TypeInst) *) (st:
 
     let g = env.g
     if st.PUntaint((fun st -> st.IsArray),m) then 
-        let elemTy = (ImportProvidedType env m (* tinst *) (st.PApply((fun st -> st.GetElementType()),m)))
+        let elemTy = ImportProvidedType env m (* tinst *) ct (st.PApply((fun st -> st.GetElementType()),m))
         mkArrayTy g (st.PUntaint((fun st -> st.GetArrayRank()),m))  elemTy m
     elif st.PUntaint((fun st -> st.IsByRef),m) then 
-        let elemTy = (ImportProvidedType env m (* tinst *) (st.PApply((fun st -> st.GetElementType()),m)))
+        let elemTy = ImportProvidedType env m (* tinst *) ct (st.PApply((fun st -> st.GetElementType()),m))
         mkByrefTy g elemTy
     elif st.PUntaint((fun st -> st.IsPointer),m) then 
-        let elemTy = (ImportProvidedType env m (* tinst *) (st.PApply((fun st -> st.GetElementType()),m)))
+        let elemTy = ImportProvidedType env m (* tinst *) ct (st.PApply((fun st -> st.GetElementType()),m))
         mkNativePtrTy g elemTy
     else
 
@@ -272,7 +272,7 @@ let rec ImportProvidedType (env:ImportMap) (m:range) (* (tinst:TypeInst) *) (st:
         let tcref, genericArgs = 
             if st.PUntaint((fun st -> st.IsGenericType),m) then 
                 let tcref = ImportProvidedNamedType env m (st.PApply((fun st -> st.GetGenericTypeDefinition()),m))
-                let args = st.PApplyArray((fun st -> st.GetGenericArguments()),"GetGenericArguments",m) |> Array.map (ImportProvidedType env m (* tinst *) ) |> List.ofArray 
+                let args = st.PApplyArray((fun st -> st.GetGenericArguments()),"GetGenericArguments",m) |> Array.map (ImportProvidedType env m (* tinst *) ct) |> List.ofArray 
                 tcref,args
             else 
                 let tcref = ImportProvidedNamedType env m st
@@ -317,7 +317,7 @@ let rec ImportProvidedType (env:ImportMap) (m:range) (* (tinst:TypeInst) *) (st:
 
 
 /// Import a provided method reference as an Abstract IL method reference
-let ImportProvidedMethodBaseAsILMethodRef (env:ImportMap) (m:range) (mbase: Tainted<ProvidedMethodBase>) = 
+let ImportProvidedMethodBaseAsILMethodRef (env:ImportMap) (m:range) (mbase: Tainted<ProvidedMethodBase>) ct = 
      let tref = ExtensionTyping.GetILTypeRefOfProvidedType (mbase.PApply((fun mbase -> mbase.DeclaringType),m), m)
 
      let mbase = 
@@ -352,8 +352,8 @@ let ImportProvidedMethodBaseAsILMethodRef (env:ImportMap) (m:range) (mbase: Tain
                     let ctors = declaringGenericTypeDefn.PApplyArray((fun x -> x.GetConstructors()),"GetConstructors",m) 
                     let actualParameterTypes = 
                         [ for p in cinfo.PApplyArray((fun x -> x.GetParameters()), "GetParameters",m) do
-                            yield ImportProvidedType env m (p.PApply((fun p -> p.ParameterType),m)) ]
-                    let actualGenericArgs = argsOfAppTy env.g (ImportProvidedType env m declaringType)
+                            yield ImportProvidedType env m ct (p.PApply((fun p -> p.ParameterType),m)) ]
+                    let actualGenericArgs = argsOfAppTy env.g (ImportProvidedType env m ct declaringType)
                     ctors |> Array.tryFind (fun ctor -> 
                        let formalParameterTypesAfterInstantiation = 
                            [ for p in ctor.PApplyArray((fun x -> x.GetParameters()), "GetParameters",m) do
@@ -398,11 +398,11 @@ let ImportProvidedMethodBaseAsILMethodRef (env:ImportMap) (m:range) (mbase: Tain
 /// 
 /// Fixup the constraints so that any references to the generic parameters
 /// in the constraints now refer to the new generic parameters.
-let ImportILGenericParameters amap m scoref tinst (gps: ILGenericParameterDefs) = 
+let ImportILGenericParameters amap m scoref tinst (gps: ILGenericParameterDefs) (ct: CancellationToken) = 
     match gps with 
     | [] -> []
     | _ -> 
-        let amap = amap()
+        let amap = amap ct
         let tps = gps |> List.map (fun gp -> NewRigidTypar gp.Name m) 
 
         let tptys = tps |> List.map mkTyparTy
@@ -444,25 +444,25 @@ let multisetDiscriminateAndMap nodef tipf (items: ('Key list * 'Value) list) =
  
 
 /// Import an IL type definition as a new F# TAST Entity node.
-let rec ImportILTypeDef amap m scoref (cpath:CompilationPath) enc nm (tdef:ILTypeDef)  =
+let rec ImportILTypeDef (amap: CancellationToken -> ImportMap) m scoref (cpath:CompilationPath) enc nm (tdef:ILTypeDef) (ct: CancellationToken) =
     let lazyModuleOrNamespaceTypeForNestedTypes = 
         lazy 
             let cpath = cpath.NestedCompPath nm ModuleOrType
-            ImportILTypeDefs amap m scoref cpath (enc@[tdef]) tdef.NestedTypes
+            ImportILTypeDefs amap m scoref cpath (enc@[tdef]) tdef.NestedTypes CancellationToken.None
     // Add the type itself. 
     NewILTycon 
         (Some cpath) 
         (nm,m) 
         // The read of the type parameters may fail to resolve types. We pick up a new range from the point where that read is forced
         // Make sure we reraise the original exception one occurs - see findOriginalException.
-        (LazyWithContext.Create((fun m -> ImportILGenericParameters amap m scoref [] tdef.GenericParams), ErrorLogger.findOriginalException))
+        (LazyWithContext.Create((fun m -> ImportILGenericParameters amap m scoref [] tdef.GenericParams ct), ErrorLogger.findOriginalException))
         (scoref,enc,tdef) 
         (MaybeLazy.Lazy lazyModuleOrNamespaceTypeForNestedTypes)
        
 
 /// Import a list of (possibly nested) IL types as a new ModuleOrNamespaceType node
 /// containing new entities, bucketing by namespace along the way.
-and ImportILTypeDefList amap m (cpath:CompilationPath) enc items =
+and ImportILTypeDefList (amap: CancellationToken -> ImportMap) m (cpath:CompilationPath) enc (ct: CancellationToken) items =
     // Split into the ones with namespaces and without. Add the ones with namespaces in buckets.
     // That is, discriminate based in the first element of the namespace list (e.g. "System") 
     // and, for each bag, fold-in a lazy computation to add the types under that bag .
@@ -475,23 +475,23 @@ and ImportILTypeDefList amap m (cpath:CompilationPath) enc items =
         items 
         |> multisetDiscriminateAndMap 
             (fun n tgs ->
-                let modty = lazy (ImportILTypeDefList amap m (cpath.NestedCompPath n Namespace) enc tgs)
+                let modty = lazy (ImportILTypeDefList amap m (cpath.NestedCompPath n Namespace) enc CancellationToken.None tgs)
                 NewModuleOrNamespace (Some cpath) taccessPublic (mkSynId m n) XmlDoc.Empty [] (MaybeLazy.Lazy modty))
             (fun (n,info:Lazy<_>) -> 
                 let (scoref2,_,lazyTypeDef:Lazy<ILTypeDef>) = info.Force()
-                ImportILTypeDef amap m scoref2 cpath enc n (lazyTypeDef.Force()))
+                ImportILTypeDef amap m scoref2 cpath enc n (lazyTypeDef.Force()) ct)
 
     let kind = match enc with [] -> Namespace | _ -> ModuleOrType
     NewModuleOrNamespaceType kind entities []
       
 /// Import a table of IL types as a ModuleOrNamespaceType.
 ///
-and ImportILTypeDefs amap m scoref cpath enc (tdefs: ILTypeDefs) =
+and ImportILTypeDefs amap m scoref cpath enc (tdefs: ILTypeDefs) (ct: CancellationToken) =
     // We be very careful not to force a read of the type defs here
     tdefs.AsArrayOfLazyTypeDefs
     |> Array.map (fun (ns,n,attrs,lazyTypeDef) -> (ns,(n,notlazy(scoref,attrs,lazyTypeDef))))
     |> Array.toList
-    |> ImportILTypeDefList amap m cpath enc
+    |> ImportILTypeDefList amap m cpath enc ct
 
 /// Import the main type definitions in an IL assembly.
 ///
@@ -502,7 +502,7 @@ let ImportILAssemblyMainTypeDefs amap m scoref modul =
     modul.TypeDefs |> ImportILTypeDefs amap m scoref (CompPath(scoref,[])) [] 
 
 /// Import the "exported types" table for multi-module assemblies. 
-let ImportILAssemblyExportedType amap m auxModLoader (scoref:ILScopeRef) (exportedType:ILExportedTypeOrForwarder) = 
+let ImportILAssemblyExportedType amap m auxModLoader (scoref:ILScopeRef) (exportedType:ILExportedTypeOrForwarder) (ct: CancellationToken) = 
     // Forwarders are dealt with separately in the ref->def dereferencing logic in tast.fs as they effectively give rise to type equivalences
     if exportedType.IsForwarder then 
         []
@@ -520,19 +520,19 @@ let ImportILAssemblyExportedType amap m auxModLoader (scoref:ILScopeRef) (export
                      scoref,exportedType.CustomAttrs,lazyTypeDef)
               
         let ns,n = splitILTypeName exportedType.Name
-        [ ImportILTypeDefList amap m (CompPath(scoref,[])) [] [(ns,(n,info))]  ]
+        [ ImportILTypeDefList amap m (CompPath(scoref,[])) [] ct [(ns,(n,info))]  ]
 
 /// Import the "exported types" table for multi-module assemblies. 
-let ImportILAssemblyExportedTypes amap m auxModLoader scoref (exportedTypes: ILExportedTypesAndForwarders) = 
+let ImportILAssemblyExportedTypes amap m auxModLoader scoref (exportedTypes: ILExportedTypesAndForwarders) (ct: CancellationToken) = 
     [ for exportedType in exportedTypes.AsList do 
-         yield! ImportILAssemblyExportedType amap m auxModLoader scoref exportedType ]
+         yield! ImportILAssemblyExportedType amap m auxModLoader scoref exportedType ct ]
 
 /// Import both the main type definitions and the "exported types" table, i.e. all the 
 /// types defined in an IL assembly.
-let ImportILAssemblyTypeDefs (amap, m, auxModLoader, aref, mainmod:ILModuleDef) = 
+let ImportILAssemblyTypeDefs (amap, m, auxModLoader, aref, mainmod:ILModuleDef, ct: CancellationToken) = 
     let scoref = ILScopeRef.Assembly aref
-    let mtypsForExportedTypes = ImportILAssemblyExportedTypes amap m auxModLoader scoref mainmod.ManifestOfAssembly.ExportedTypes
-    let mainmod = ImportILAssemblyMainTypeDefs amap m scoref mainmod
+    let mtypsForExportedTypes = ImportILAssemblyExportedTypes amap m auxModLoader scoref mainmod.ManifestOfAssembly.ExportedTypes ct
+    let mainmod = ImportILAssemblyMainTypeDefs amap m scoref mainmod ct
     CombineCcuContentFragments m (mainmod :: mtypsForExportedTypes)
 
 /// Import the type forwarder table for an IL assembly
@@ -557,21 +557,21 @@ let ImportILAssemblyTypeForwarders (amap, m, exportedTypes:ILExportedTypesAndFor
   
 
 /// Import an IL assembly as a new TAST CCU
-let ImportILAssembly(amap:(System.Threading.CancellationToken -> ImportMap),m,auxModuleLoader,sref,sourceDir,filename,ilModule:ILModuleDef,invalidateCcu:IEvent<string>) = 
+let ImportILAssembly(amap:(CancellationToken -> ImportMap),m,auxModuleLoader,sref,sourceDir,filename,ilModule:ILModuleDef,invalidateCcu:IEvent<string>,ct:CancellationToken) = 
         invalidateCcu |> ignore
         let aref =   
             match sref with 
             | ILScopeRef.Assembly aref -> aref 
             | _ -> error(InternalError("ImportILAssembly: cannot reference .NET netmodules directly, reference the containing assembly instead",m))
         let nm = aref.Name
-        let mty = ImportILAssemblyTypeDefs(amap,m,auxModuleLoader,aref,ilModule)
+        let mty = ImportILAssemblyTypeDefs(amap,m,auxModuleLoader,aref,ilModule,ct)
         let ccuData : CcuData = 
           { IsFSharp=false
             UsesFSharp20PlusQuotations=false
 #if EXTENSIONTYPING
             InvalidateEvent=invalidateCcu
             IsProviderGenerated = false
-            ImportProvidedType = (fun ty -> ImportProvidedType (amap()) m ty)
+            ImportProvidedType = (fun ty -> ImportProvidedType (amap ct) m CancellationToken.None ty)
 #endif
             QualifiedName= Some sref.QualifiedName
             Contents = NewCcuContents sref m nm mty 
@@ -579,7 +579,7 @@ let ImportILAssembly(amap:(System.Threading.CancellationToken -> ImportMap),m,au
             Stamp = newStamp()
             SourceCodeDirectory = sourceDir  // note: not an accurate value, but IL assemblies don't give us this information in any attributes. 
             FileName = filename
-            MemberSignatureEquality= (fun ty1 ty2 -> Tastops.typeEquivAux EraseAll (amap()).g ty1 ty2)
+            MemberSignatureEquality= (fun ty1 ty2 -> Tastops.typeEquivAux EraseAll (amap ct).g ty1 ty2)
             TypeForwarders = 
                (match ilModule.Manifest with 
                 | None -> Map.empty

@@ -3,6 +3,7 @@
 /// Functions to import .NET binary metadata as TAST objects
 module internal Microsoft.FSharp.Compiler.Import
 
+open System.Threading
 open Microsoft.FSharp.Compiler.Tast
 open Microsoft.FSharp.Compiler.TcGlobals
 open Microsoft.FSharp.Compiler.Range
@@ -63,7 +64,7 @@ val internal CanImportILType : ImportMap -> range -> ILType -> bool
 #if EXTENSIONTYPING
 
 /// Import a provided type as an F# type.
-val internal ImportProvidedType : ImportMap -> range -> (* TType list -> *) Tainted<ProvidedType> -> TType
+val internal ImportProvidedType : ImportMap -> range -> CancellationToken -> (* TType list -> *) Tainted<ProvidedType> -> TType
 
 /// Import a provided type reference as an F# type TyconRef
 val internal ImportProvidedNamedType : ImportMap -> range -> (* TType list -> *) Tainted<ProvidedType> -> TyconRef
@@ -72,14 +73,14 @@ val internal ImportProvidedNamedType : ImportMap -> range -> (* TType list -> *)
 val internal ImportProvidedTypeAsILType : ImportMap -> range -> Tainted<ProvidedType> -> ILType
 
 /// Import a provided method reference as an Abstract IL method reference
-val internal ImportProvidedMethodBaseAsILMethodRef : ImportMap -> range -> Tainted<ProvidedMethodBase> -> ILMethodRef
+val internal ImportProvidedMethodBaseAsILMethodRef : ImportMap -> range -> Tainted<ProvidedMethodBase> -> CancellationToken -> ILMethodRef
 #endif
 
 /// Import a set of Abstract IL generic parameter specifications as a list of new F# generic parameters.  
-val internal ImportILGenericParameters : (unit -> ImportMap) -> range -> ILScopeRef -> TType list -> ILGenericParameterDef list -> Typar list
+val internal ImportILGenericParameters : (CancellationToken -> ImportMap) -> range -> ILScopeRef -> TType list -> ILGenericParameterDef list -> CancellationToken -> Typar list
 
 /// Import an IL assembly as a new TAST CCU
-val internal ImportILAssembly : (unit -> ImportMap) * range * (ILScopeRef -> ILModuleDef) * ILScopeRef * sourceDir:string * filename: string option * ILModuleDef * IEvent<string> -> CcuThunk
+val internal ImportILAssembly : (CancellationToken -> ImportMap) * range * (ILScopeRef -> ILModuleDef) * ILScopeRef * sourceDir:string * filename: string option * ILModuleDef * IEvent<string> * CancellationToken -> CcuThunk
 
 /// Import the type forwarder table for an IL assembly
-val internal ImportILAssemblyTypeForwarders : (unit -> ImportMap) * range * ILExportedTypesAndForwarders -> Map<(string array * string), Lazy<EntityRef>>
+val internal ImportILAssemblyTypeForwarders : (CancellationToken -> ImportMap) * range * ILExportedTypesAndForwarders -> Map<(string array * string), Lazy<EntityRef>>
