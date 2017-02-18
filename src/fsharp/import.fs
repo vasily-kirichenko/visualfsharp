@@ -19,6 +19,8 @@ open Microsoft.FSharp.Compiler.Ast
 open Microsoft.FSharp.Compiler.ErrorLogger
 #if EXTENSIONTYPING
 open Microsoft.FSharp.Compiler.ExtensionTyping
+open System.Threading
+
 #endif
 
 /// Represents an interface to some of the functionality of TcImports, for loading assemblies 
@@ -541,13 +543,13 @@ let ImportILAssemblyTypeForwarders (amap, m, exportedTypes:ILExportedTypesAndFor
         for exportedType in exportedTypes.AsList do 
             let ns,n = splitILTypeName exportedType.Name
             //printfn "found forwarder for %s..." n
-            let tcref = lazy ImportILTypeRefUncached (amap()) m (ILTypeRef.Create(exportedType.ScopeRef,[],exportedType.Name))
+            let tcref = lazy ImportILTypeRefUncached (amap CancellationToken.None) m (ILTypeRef.Create(exportedType.ScopeRef,[],exportedType.Name))
             yield (Array.ofList ns,n),tcref
             let rec nested (nets:ILNestedExportedTypes) enc = 
                 [ for net in nets.AsList do 
                     
                     //printfn "found nested forwarder for %s..." net.Name
-                    let tcref = lazy ImportILTypeRefUncached (amap()) m (ILTypeRef.Create (exportedType.ScopeRef,enc,net.Name))
+                    let tcref = lazy ImportILTypeRefUncached (amap CancellationToken.None) m (ILTypeRef.Create (exportedType.ScopeRef,enc,net.Name))
                     yield (Array.ofList enc,exportedType.Name),tcref 
                     yield! nested net.Nested (enc @ [ net.Name ]) ]
             yield! nested exportedType.Nested (ns@[n]) 
@@ -555,7 +557,7 @@ let ImportILAssemblyTypeForwarders (amap, m, exportedTypes:ILExportedTypesAndFor
   
 
 /// Import an IL assembly as a new TAST CCU
-let ImportILAssembly(amap:(unit -> ImportMap),m,auxModuleLoader,sref,sourceDir,filename,ilModule:ILModuleDef,invalidateCcu:IEvent<string>) = 
+let ImportILAssembly(amap:(System.Threading.CancellationToken -> ImportMap),m,auxModuleLoader,sref,sourceDir,filename,ilModule:ILModuleDef,invalidateCcu:IEvent<string>) = 
         invalidateCcu |> ignore
         let aref =   
             match sref with 

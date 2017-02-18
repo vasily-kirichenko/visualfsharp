@@ -2240,10 +2240,10 @@ type BackgroundCompiler(referenceResolver, projectCacheSize, keepAssemblyContent
         let projectReferences =  
             [ for (nm,opts) in options.ReferencedProjects ->
                 { new IProjectReference with 
-                        member x.EvaluateRawContents() = 
+                        member x.EvaluateRawContents(ct) = 
                             let r = self.ParseAndCheckProjectImpl(opts, ctok, ct)
                             r.RawFSharpAssemblyData 
-                        member x.GetLogicalTimeStamp() = 
+                        member x.GetLogicalTimeStamp(ct) = 
                             self.GetLogicalTimeStampForProject(ctok, opts, ct)
                         member x.FileName = nm } ]
 
