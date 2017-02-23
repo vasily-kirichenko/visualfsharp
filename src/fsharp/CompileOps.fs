@@ -3124,7 +3124,7 @@ type TcConfig private (data : TcConfigBuilder,validate:bool) =
 
     member tcConfig.PrimaryAssemblyDllReference() = primaryAssemblyReference
     member tcConfig.CoreLibraryDllReference() = fslibReference
-               
+    member tcConfig.DumpData() : string = sprintf "%+A" data
 
 let ReportWarning (globalWarnLevel : int, specificWarnOff : int list, specificWarnOn : int list) err = 
     let n = GetDiagnosticNumber err
@@ -4529,6 +4529,21 @@ type TcImports(tcConfigP:TcConfigProvider, initialResolutions:TcAssemblyResoluti
                         match frameworkTcImports.RegisterAndImportReferencedAssemblies(ctok, [coreLibraryResolution]) |> Cancellable.runWithoutCancellation with
                         | (_, [ResolvedImportedAssembly(fslibCcuInfo) ]) -> fslibCcuInfo
                         | _ -> 
+                            let dumpMap (writer: StreamWriter) (m: Map<_,_>) =
+                                for k, v in Map.toSeq m do
+                                    writer.WriteLine(sprintf "%A => %A" k v)
+
+                            using (new StreamWriter(@"d:\TcImport.txt", append = true)) <| fun writer ->
+                                writer.WriteLine (sprintf "%O ***********************\n\n" DateTime.Now)
+                                
+                                writer.WriteLine (sprintf "%O - tcConfigData:\n%s" DateTime.Now (tcConfig.DumpData()))
+
+                                writer.WriteLine (sprintf "%O - frameworkTcImports.CcuTable:\n" DateTime.Now)
+                                dumpMap writer frameworkTcImports.CcuTable
+
+                                writer.WriteLine (sprintf "\n%O - frameworkTcImports.DllTable:\n" DateTime.Now)
+                                dumpMap writer frameworkTcImports.DllTable
+
                             error(InternalError("BuildFrameworkTcImports: no successful import of "+coreLibraryResolution.resolvedPath,coreLibraryResolution.originalReference.Range))
                     | None -> 
                         error(InternalError(sprintf "BuildFrameworkTcImports: no resolution of '%s'" coreLibraryReference.Text,rangeStartup))
