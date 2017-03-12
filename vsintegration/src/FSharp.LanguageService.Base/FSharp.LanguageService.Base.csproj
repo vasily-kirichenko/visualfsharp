@@ -58,11 +58,14 @@
       <HintPath>$(FSharpSourcesRoot)\..\packages\Microsoft.VisualFSharp.Msbuild.15.0.1.0.1\lib\net45\Microsoft.Build.Framework.dll</HintPath>
     </Reference>
     <Reference Include="microsoft.msxml" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
     <Reference Include="System.Drawing" />
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Data" />
     <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xaml" />
     <Reference Include="System.Xml" />
     <Reference Include="EnvDTE.dll" />
     <Reference Include="EnvDTE80.dll" />
@@ -132,6 +135,7 @@
       <Project>{DED3BBD7-53F4-428A-8C9F-27968E768605}</Project>
       <Name>FSharp.Core</Name>
     </ProjectReference>
+    <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="InternalsVisibleTo.cs" />
@@ -187,6 +191,9 @@
     <Compile Include="Scanner.cs" />
     <Compile Include="Source.cs" />
     <Compile Include="Tracing.cs" />
+    <Compile Include="UI\QuickInfoMargin.xaml.cs">
+      <DependentUpon>QuickInfoMargin.xaml</DependentUpon>
+    </Compile>
     <Compile Include="UnsafeNativeMethods.cs" />
     <Compile Include="Utilities.cs" />
     <Compile Include="ViewFilter.cs" />
@@ -201,6 +208,12 @@
     <EmbeddedResource Include="Resources\completionset.bmp">
       <LogicalName>Resources.completionset.bmp</LogicalName>
     </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <Page Include="UI\QuickInfoMargin.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="$(FSharpSourcesRoot)\Microbuild.Settings.targets" />

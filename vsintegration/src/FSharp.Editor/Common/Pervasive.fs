@@ -179,6 +179,8 @@ let inline liftAsync (computation : Async<'T>) : Async<'T option> =
     }
 
 module Async =
+    open System.Threading
+
     let map (f: 'T -> 'U) (a: Async<'T>) : Async<'U> =
         async {
             let! a = a
@@ -199,6 +201,39 @@ module Async =
             }
         async { return! agent.PostAndAsyncReply id }
 
+    let synchronize f = 
+        let ctx = SynchronizationContext.Current
+        
+        let thread = 
+            match ctx with
+            | null -> null // saving a thread-local access
+            | _ -> Thread.CurrentThread
+        f (fun g arg -> 
+            let nctx = SynchronizationContext.Current
+            match ctx, nctx with
+            | null, _ -> g arg
+            | _, _ when Object.Equals(ctx, nctx) && thread.Equals(Thread.CurrentThread) -> g arg
+            | _ -> ctx.Post((fun _ -> g (arg)), null))
+
+    let eitherEvent(ev1: IObservable<'T>, ev2: IObservable<'U>) = 
+            synchronize (fun f -> 
+                Async.FromContinuations((fun (cont, _econt, _ccont) -> 
+                    let rec callback1 = 
+                        (fun value -> 
+                        remover1.Dispose()
+                        remover2.Dispose()
+                        f cont (Choice1Of2(value)))
+                    
+                    and callback2 = 
+                        (fun value -> 
+                        remover1.Dispose()
+                        remover2.Dispose()
+                        f cont (Choice2Of2(value)))
+                    
+                    and remover1: IDisposable = ev1.Subscribe(callback1)
+                    and remover2: IDisposable = ev2.Subscribe(callback2)
+                    ())))
+
 type AsyncBuilder with
     member __.Bind(computation: System.Threading.Tasks.Task<'a>, binder: 'a -> Async<'b>): Async<'b> =
         async {
@@ -212,6 +247,17 @@ type AsyncBuilder with
 module Option =
     let guard (x: bool) : Option<unit> =
         if x then Some() else None
+
+module Array =
+    /// Fold over the array passing the index and element at that index to a folding function
+    let foldi (folder: 'State -> int -> 'T -> 'State) (state: 'State) (array: 'T []) =
+        if array.Length = 0 then state else
+        let folder = OptimizedClosures.FSharpFunc<_,_,_,_>.Adapt folder
+        let mutable state:'State = state
+        let len = array.Length
+        for i = 0 to len - 1 do
+            state <- folder.Invoke (state, i, array.[i])
+        state
 
 module List =
     let foldi (folder : 'State -> int -> 'T -> 'State) (state : 'State) (xs : 'T list) =
