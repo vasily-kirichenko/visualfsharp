@@ -73,6 +73,7 @@ type CompletionContext =
     // end of name ast node * list of properties\parameters that were already set
     | ParameterList of pos * HashSet<string>
     | AttributeApplication
+    | TypeHint
 
 //----------------------------------------------------------------------------
 // FSharpParseFileResults
@@ -1180,9 +1181,13 @@ module UntypedParseImpl =
                             | SynPat.Named (range = range) when rangeContainsPos range pos -> 
                                 // parameter without type hint, no completion
                                 Some CompletionContext.Invalid 
-                            | SynPat.Typed(SynPat.Named(SynPat.Wild(range), _, _, _, _), _, _) when rangeContainsPos range pos ->
-                                // parameter with type hint, but we are on its name, no completion
-                                Some CompletionContext.Invalid
+                            | SynPat.Typed(SynPat.Named(SynPat.Wild(range), _, _, _, _), ty, _) ->
+                                if rangeContainsPos range pos then
+                                    // parameter with type hint, but we are on its name, no completion
+                                    Some CompletionContext.Invalid
+                                else if rangeContainsPos ty.Range pos then
+                                    Some CompletionContext.TypeHint
+                                else None
                             | _ -> None
 
                         match headPat with

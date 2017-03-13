@@ -865,6 +865,11 @@ type TypeCheckInfo
         | Item.Types(_, ty::_) when (isInterfaceTy g ty) -> true
         | _ -> false   
 
+    let GetTypeCandidates = function
+        | Item.ModuleOrNamespaces _ -> true
+        | Item.Types _ -> true
+        | _ -> false   
+
     // Return only items with the specified name
     let FilterDeclItemsByResidue residue (items: Item list) = 
         items |> List.filter (fun item -> 
@@ -1162,6 +1167,11 @@ type TypeCheckInfo
                      | Item.Types _
                      | Item.ModuleOrNamespaces _ -> true
                      | _ -> false), denv, m)
+
+        | Some(CompletionContext.TypeHint) ->
+            GetEnvironmentLookupResolutionsAtPosition(mkPos line loc, [], filterCtors, false)
+            |> FilterRelevantItemsBy None GetTypeCandidates
+            |> Option.map toCompletionItems
 
         // Other completions
         | cc ->

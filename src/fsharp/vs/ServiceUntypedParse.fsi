@@ -76,6 +76,7 @@ type internal CompletionContext =
     // end of name ast node * list of properties\parameters that were already set
     | ParameterList of pos * HashSet<string>
     | AttributeApplication
+    | TypeHint
 
 type internal ModuleKind = { IsAutoOpen: bool; HasModuleSuffix: bool }
 
