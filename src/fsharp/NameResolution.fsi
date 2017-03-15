@@ -101,6 +101,7 @@ type NameResolutionEnv =
     static member Empty : g:TcGlobals -> NameResolutionEnv
     member DisplayEnv : DisplayEnv
     member FindUnqualifiedItem : string -> Item
+    member IsReacherThan : other : NameResolutionEnv -> bool
 
 type FullyQualifiedFlag =
   | FullyQualified

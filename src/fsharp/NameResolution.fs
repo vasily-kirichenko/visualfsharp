@@ -381,6 +381,15 @@ type NameResolutionEnv =
         | FullyQualified -> nenv.eFullyQualifiedModulesAndNamespaces 
         | OpenQualified -> nenv.eModulesAndNamespaces 
 
+    member this.IsReacherThan(other : NameResolutionEnv) =
+        this.eUnqualifiedItems.Count > other.eUnqualifiedItems.Count ||
+        this.eModulesAndNamespaces.Count > other.eModulesAndNamespaces.Count ||
+        this.eFullyQualifiedModulesAndNamespaces.Count > other.eFullyQualifiedModulesAndNamespaces.Count ||
+        this.eFieldLabels.Count > other.eFieldLabels.Count ||
+        this.ePatItems.Count > other.ePatItems.Count ||
+        this.eTypars.Count > other.eTypars.Count ||
+        this.eUnindexedExtensionMembers.Length > other.eUnindexedExtensionMembers.Length
+
 //-------------------------------------------------------------------------
 // Helpers to do with extension members
 //------------------------------------------------------------------------- 
