@@ -542,18 +542,32 @@ type TypeCheckInfo
     let infoReader = new InfoReader(g,amap)
     let ncenv = new NameResolver(g,amap,infoReader,NameResolution.FakeInstantiationGenerator)
     
+    let logLock = obj()
+    let log fmt = 
+        lock logLock (fun _ ->
+            Printf.kprintf (fun s -> File.AppendAllText(@"d:\nr.txt", sprintf "%O %s\n" DateTime.Now s)) fmt
+        )
+
     /// Find the most precise naming environment for the given line and column
     let GetBestEnvForPos cursorPos  =
         
+        let containsXxx1 (env: NameResolutionEnv option) =
+            match env with
+            | Some env when env.eUnqualifiedItems.ContainsKey "xxx1" -> true
+            | _ -> false
+
         let mutable bestSoFar = None
 
         // Find the most deeply nested enclosing scope that contains given position
         sResolutions.CapturedEnvs |> ResizeArray.iter (fun (possm,env,ad) -> 
             if rangeContainsPos possm cursorPos then
                 match bestSoFar with 
-                | Some (bestm,_,_) -> 
-                    if rangeContainsRange bestm possm then 
-                      bestSoFar <- Some (possm,env,ad)
+                | Some (bestm, bestenv, _) ->
+                    if rangeContainsRange bestm possm then
+                      if posGt possm.Start bestm.Start || posLt possm.End bestm.End || env.IsReacherThan(bestenv) then
+                        log "FIRST STAGE Replacing! bestm = %A, possm = %A, env.IsReacherThan(bestenv) = %b, contains xxx1? = %b" 
+                            bestm possm (env.IsReacherThan bestenv) (containsXxx1 (Some env))
+                        bestSoFar <- Some (possm,env,ad)
                 | None -> 
                     bestSoFar <- Some (possm,env,ad))
 
@@ -563,7 +577,7 @@ type TypeCheckInfo
         // Should really go all the way down the r.h.s. of the subtree to the left of where we are 
         // This is all needed when the index is floating free in the area just after the environment we really want to capture 
         // We guarantee to only refine to a more nested environment.  It may not be strictly  
-        // the right environment, but will alwauys be at least as rich 
+        // the right environment, but will always be at least as rich 
 
         let bestAlmostIncludedSoFar = ref None 
 
@@ -576,18 +590,23 @@ type TypeCheckInfo
                     | None -> true 
                 
                 if contained then 
-                    match  !bestAlmostIncludedSoFar with 
+                    match !bestAlmostIncludedSoFar with 
                     | Some (rightm:range,_,_) -> 
-                        if posGt possm.End rightm.End || 
-                          (posEq possm.End rightm.End && posGt possm.Start rightm.Start) then
+                        if posGt possm.End rightm.End || (posEq possm.End rightm.End && posGt possm.Start rightm.Start) then
                             bestAlmostIncludedSoFar := Some (possm,env,ad)
                     | _ -> bestAlmostIncludedSoFar := Some (possm,env,ad))
         
+        log "mostDeeplyNested = (%A, contains xxx1? = %b)" mostDeeplyNestedEnclosingScope
+            (mostDeeplyNestedEnclosingScope |> Option.map (fun (_,env,_) -> env) |> containsXxx1)
+        
+        log "bestAlmostIncluded = (%A, contains xxx1? = %b)" !bestAlmostIncludedSoFar
+            (!bestAlmostIncludedSoFar |> Option.map (fun (_,env,_) -> env) |> containsXxx1)
+
         let resEnv = 
             match !bestAlmostIncludedSoFar, mostDeeplyNestedEnclosingScope with 
             | Some (_,env,ad), None -> env, ad
-            | Some (_,almostIncludedEnv,ad), Some (_,mostDeeplyNestedEnv,_) 
-                when almostIncludedEnv.eFieldLabels.Count >= mostDeeplyNestedEnv.eFieldLabels.Count -> 
+            | Some (_,almostIncludedEnv,ad), Some (_,mostDeeplyNestedEnv,_) when // almostIncludedEnv.IsReacherThan(mostDeeplyNestedEnv) -> 
+                almostIncludedEnv.eFieldLabels.Count >= mostDeeplyNestedEnv.eFieldLabels.Count ->
                 almostIncludedEnv,ad
             | _ -> 
                 match mostDeeplyNestedEnclosingScope with 
@@ -596,6 +615,8 @@ type TypeCheckInfo
                 | None -> 
                     sFallback,AccessibleFromSomeFSharpCode
         let pm = mkRange mainInputFileName cursorPos cursorPos 
+
+        log "result = (%A, contains xxx1? = %b)" resEnv (containsXxx1 (Some (fst resEnv)))
 
         resEnv,pm
 

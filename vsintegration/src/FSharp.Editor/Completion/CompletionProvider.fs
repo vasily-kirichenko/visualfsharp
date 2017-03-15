@@ -219,7 +219,8 @@ type internal FSharpCompletionProvider
 
                 let sortText = sprintf "%06d" priority
 
-                //Logging.Logging.logInfof "***** %s => %s" name sortText
+                Logging.Logging.logInfof "***** %s (kind = %+A, isOwn = %b, minorPriority = %d) => %s" 
+                                         name declarationItem.Kind declarationItem.IsOwnMember declarationItem.MinorPriority sortText
 
                 let completionItem = completionItem.WithSortText(sortText)
 
