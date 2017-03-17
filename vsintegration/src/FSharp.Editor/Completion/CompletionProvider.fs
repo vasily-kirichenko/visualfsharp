@@ -41,6 +41,11 @@ type internal FSharpCompletionProvider
     let xmlMemberIndexService = serviceProvider.GetService(typeof<IVsXMLMemberIndexService>) :?> IVsXMLMemberIndexService
     let documentationBuilder = XmlDocumentation.CreateDocumentationBuilder(xmlMemberIndexService, serviceProvider.DTE)
     static let attributeSuffixLength = "Attribute".Length
+    
+    static let noCommitOnSpaceRules = 
+        CompletionItemRules.Default.WithCommitCharacterRule(CharacterSetModificationRule.Create(CharacterSetModificationKind.Remove, ' ', '.', '<', '>', '(', ')'))
+    
+    static let getRules() = if IntelliSenseSettings.ShowAfterCharIsTyped then noCommitOnSpaceRules else CompletionItemRules.Default
 
     static let shouldProvideCompletion (documentId: DocumentId, filePath: string, defines: string list, text: SourceText, position: int) : bool =
         let textLines = text.Lines
@@ -148,11 +153,14 @@ type internal FSharpCompletionProvider
             else
                 let documentId, filePath, defines = getInfo()
                 shouldProvideCompletion(documentId, filePath, defines, sourceText, triggerPosition) &&
-                CommonCompletionUtilities.IsStartingNewWord(sourceText, triggerPosition, (fun ch -> isIdentifierStartCharacter ch), (fun ch -> isIdentifierPartCharacter ch))
+                (IntelliSenseSettings.ShowAfterCharIsTyped && 
+                 CommonCompletionUtilities.IsStartingNewWord(sourceText, triggerPosition, (fun ch -> isIdentifierStartCharacter ch), (fun ch -> isIdentifierPartCharacter ch)))
 
     static member ProvideCompletionsAsyncAux(checker: FSharpChecker, sourceText: SourceText, caretPosition: int, options: FSharpProjectOptions, filePath: string, textVersionHash: int) = 
         asyncMaybe {
             let! parseResults, parsedInput, checkFileResults = checker.ParseAndCheckDocument(filePath, textVersionHash, sourceText.ToString(), options, allowStaleResults = true)
+
+            //Logging.Logging.logInfof "AST:\n%+A" parsedInput
 
             //Logging.Logging.logInfof "AST:\n%+A" parsedInput
 
@@ -183,7 +191,7 @@ type internal FSharpCompletionProvider
                         | CompletionItemKind.Argument -> 4
                         | CompletionItemKind.Other -> 5
                         | CompletionItemKind.Method (isExtension = true) -> 6
-                    kindPriority, not item.IsOwnMember, item.MinorPriority, item.Name)
+                    kindPriority, not item.IsOwnMember, item.Name.ToLowerInvariant(), item.MinorPriority)
 
             let maxHints = if mruItems.Values.Count = 0 then 0 else Seq.max mruItems.Values
 
@@ -195,7 +203,7 @@ type internal FSharpCompletionProvider
                         declarationItem.Name.[0..declarationItem.Name.Length - attributeSuffixLength - 1] 
                     | _ -> declarationItem.Name
 
-                let completionItem = CommonCompletionItem.Create(name, glyph = Nullable glyph).AddProperty(FullNamePropName, declarationItem.FullName)
+                let completionItem = CommonCompletionItem.Create(name, glyph = Nullable glyph, rules = getRules()).AddProperty(FullNamePropName, declarationItem.FullName)
                         
                 let completionItem =
                     match declarationItem.Kind with
