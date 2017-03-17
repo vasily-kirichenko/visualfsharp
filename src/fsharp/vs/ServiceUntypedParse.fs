@@ -1181,26 +1181,39 @@ module UntypedParseImpl =
                             | SynPat.Named (range = range) when rangeContainsPos range pos -> 
                                 // parameter without type hint, no completion
                                 Some CompletionContext.Invalid 
-                                else if rangeContainsPos ty.Range pos then
-                                    Some CompletionContext.TypeHint
-                                else None
-                                
-                                | SynPat.Typed(SynPat.Named(SynPat.Wild(range), _, _, _, _), ty, _) ->
+                            | SynPat.Typed(SynPat.Named(SynPat.Wild(range), _, _, _, _), ty, _) ->
                                 if rangeContainsPos range pos then
                                     // parameter with type hint, but we are on its name, no completion
                                     Some CompletionContext.Invalid
-                                else if rangeContainsPos ty.Range pos then
+                                elif rangeContainsPos ty.Range pos then
                                     Some CompletionContext.TypeHint
                                 else None
                             | _ -> None
-
-                                    | _ -> visitParam pat
-                                )
-
-                            | _ -> defaultTraverse synBinding
-
-                        | _ -> defaultTraverse synBinding 
                     
+                        let result =
+                            match headPat with
+                            | SynPat.LongIdent(_,_,_,ctorArgs,_,_) ->
+                                match ctorArgs with
+                                | SynConstructorArgs.Pats(pats) ->
+                                    pats |> List.tryPick (fun pat ->
+                                        match pat with
+                                        | SynPat.Paren(pat, _) -> 
+                                            match pat with
+                                            | SynPat.Tuple(pats, _) ->
+                                                pats |> List.tryPick visitParam
+                                            | _ -> visitParam pat
+                                        | SynPat.Wild(range) when rangeContainsPos range pos -> 
+                                            // let foo (x|
+                                            Some CompletionContext.Invalid
+                                        | _ -> visitParam pat
+                                    )
+                                | _ -> None
+                            | _ -> None
+
+                        match result with
+                        | Some x -> Some x
+                        | None -> defaultTraverse synBinding
+
                     member this.VisitHashDirective(range) = 
                         if rangeContainsPos range pos then Some CompletionContext.Invalid 
                         else None 
