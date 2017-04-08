@@ -69,6 +69,7 @@
     <Compile Include="Navigation\NavigateToSearchService.fs" />
     <Compile Include="Navigation\FindUsagesService.fs" />
     <Compile Include="QuickInfo\QuickInfoProvider.fs" />
+    <Compile Include="QuickInfo\TypeInfoAdornment.fs" />
     <Compile Include="BlockComment\CommentUncommentService.fs" />
     <Compile Include="Structure\Structure.fs" />
     <Compile Include="Structure\BlockStructureService.fs" />

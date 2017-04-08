@@ -124,9 +124,6 @@ module Option =
 
     let attempt (f: unit -> 'T) = try Some <| f() with _ -> None
 
-    let inline ofNull value =
-        if obj.ReferenceEquals(value, null) then None else Some value
-
     /// Gets the option if Some x, otherwise try to get another value
     let inline orTry f =
         function
