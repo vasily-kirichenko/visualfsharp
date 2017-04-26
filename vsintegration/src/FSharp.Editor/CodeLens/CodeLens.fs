@@ -25,8 +25,10 @@ open Microsoft.CodeAnalysis.Editor.Shared.Utilities
 open Microsoft.CodeAnalysis.Classification
 open Internal.Utilities.StructuredFormat
 open Microsoft.VisualStudio.Text.Tagging
-open Microsoft.VisualStudio.Text.Editor
 
+type private CodeLens =
+    { TaggedText: Layout.TaggedText list 
+      Outdated: bool }
 
 type internal CodeLensAdornment
     (
@@ -39,7 +41,7 @@ type internal CodeLensAdornment
     ) as self =
     
     let formatMap = lazy typeMap.Value.ClassificationFormatMapService.GetClassificationFormatMap "tooltip"
-    let codeLensLines = System.Collections.Concurrent.ConcurrentDictionary()
+    let mutable lensByLine : Map<Line0, CodeLens> = Map.empty
 
     do assert (documentId <> null)
 
@@ -59,7 +61,8 @@ type internal CodeLensAdornment
 
     let executeCodeLenseAsync () =
         asyncMaybe {
-            try 
+            try
+                let mutable lensByLineCopy = lensByLine
                 let! document = workspace.CurrentSolution.GetDocument(documentId.Value) |> Option.ofObj
                 let! options = projectInfoManager.TryGetOptionsForEditingDocumentOrProject(document)
                 let! _, _, checkFileResults = checker.ParseAndCheckDocument(document, options, allowStaleResults = true)
@@ -69,6 +72,9 @@ type internal CodeLensAdornment
                     let DoUI () = 
                         try
                             let line = view.TextViewLines.GetTextViewLineContainingBufferPosition(bufferPosition)
+                            
+                            if line.VisibilityState = VisibilityState.Unattached then 
+                                view.DisplayTextLineContainingBufferPosition(line.Start, 0., ViewRelativePosition.Top)
                             
                             let offset = 
                                 [0..line.Length - 1] |> Seq.tryFind (fun i -> not (Char.IsWhiteSpace (line.Start.Add(i).GetChar())))
@@ -108,8 +114,15 @@ type internal CodeLensAdornment
                         
                                 match func.FullTypeSafe with
                                 | Some ty ->
-                                    let bufferPosition = view.TextSnapshot.GetLineFromLineNumber(lineNumber).Start
-                                    if not (codeLensLines.ContainsKey lineNumber) then
+                                    let lensNeedUpdating =
+                                        match lensByLineCopy |> Map.tryFind lineNumber with
+                                        | Some lens -> lens.Outdated
+                                        | _ -> true
+
+                                    Logging.Logging.logInfof "line %d, lensNeedUpdating = %b" lineNumber lensNeedUpdating
+                                    
+                                    if lensNeedUpdating then
+                                        let bufferPosition = view.TextSnapshot.GetLineFromLineNumber(lineNumber).Start
                                         let! displayEnv = checkFileResults.GetDisplayEnvForPos(func.DeclarationLocation.Start)
                                         
                                         let displayContext =
@@ -120,8 +133,21 @@ type internal CodeLensAdornment
                                         let typeLayout = ty.FormatLayout(displayContext)
                                         let taggedText = ResizeArray()
                                         Layout.renderL (Layout.taggedTextListR taggedText.Add) typeLayout |> ignore
-                                        codeLensLines.[lineNumber] <- taggedText
-                                        applyCodeLens bufferPosition taggedText
+                                        let taggedText = List.ofSeq taggedText
+                                    
+                                        let needUpdating =
+                                            match lensByLineCopy |> Map.tryFind lineNumber with
+                                            | Some lens ->
+                                                taggedText.Length <> lens.TaggedText.Length ||
+                                                List.zip taggedText lens.TaggedText
+                                                |> List.exists (fun (x, y) -> x.Tag <> y.Tag || x.Text <> y.Text)
+                                            | _ -> true
+                                        
+                                        Logging.Logging.logInfof "line %d, needUpdating = %b" lineNumber needUpdating
+
+                                        if needUpdating then
+                                            lensByLineCopy <- lensByLineCopy |> Map.add lineNumber { TaggedText = taggedText; Outdated = false }
+                                            applyCodeLens bufferPosition taggedText
                                 | None -> ()
                         with
                         | _ -> () // suppress any exception according wrong line numbers -.-
@@ -138,6 +164,8 @@ type internal CodeLensAdornment
                             for func in entity.MembersFunctionsAndValues do
                                 do! useResults (symbolUse.DisplayContext, func) |> liftAsync
                         | _ -> ()
+                
+                lensByLine <- lensByLineCopy
             with
             | _ -> () // TODO: Should report error
         }
@@ -145,7 +173,7 @@ type internal CodeLensAdornment
     /// Handles required transformation depending on whether CodeLens are required or not required
     interface ILineTransformSource with
         override __.GetLineTransform(line, _, _) =
-            let applyCodeLens = codeLensLines.ContainsKey(view.TextSnapshot.GetLineNumberFromPosition(line.Start.Position))
+            let applyCodeLens = lensByLine.ContainsKey(view.TextSnapshot.GetLineNumberFromPosition(line.Start.Position))
             if applyCodeLens then
                 // Give us space for CodeLens
                 LineTransform(15., 1., 1.)
@@ -154,19 +182,27 @@ type internal CodeLensAdornment
                 line.DefaultLineTransform
 
     member __.OnLayoutChanged (e:TextViewLayoutChangedEventArgs) =
+        cancellationTokenSource.Cancel() // Stop all ongoing async workflow. 
+        cancellationTokenSource.Dispose()
+
+        let mutable lensByLineCopy = lensByLine
         // Non expensive computations which have to be done immediate
         for line in e.NewOrReformattedLines do
             let lineNumber = view.TextSnapshot.GetLineNumberFromPosition(line.Start.Position)
-            codeLensLines.TryRemove(lineNumber) |> ignore //All changed lines are supposed to be now No-CodeLens-Lines (Reset)
-            if line.VisibilityState = VisibilityState.Unattached then 
-                view.DisplayTextLineContainingBufferPosition(line.Start, 0., ViewRelativePosition.Top) //Force refresh (works partly...)
-
+            match lensByLineCopy |> Map.tryFind lineNumber with
+            | Some lens ->
+                lensByLineCopy <- lensByLineCopy |> Map.add lineNumber { lens with Outdated = true }
+                Logging.Logging.logInfof "line %d, set outdated = true" lineNumber
+            | _ -> ()
+            
+            //if line.VisibilityState = VisibilityState.Unattached then 
+            //    view.DisplayTextLineContainingBufferPosition(line.Start, 0., ViewRelativePosition.Top) //Force refresh (works partly...)
+        
         //for line in view.TextViewLines.WpfTextViewLines do
         //    if line.VisibilityState = VisibilityState.Unattached then 
         //        view.DisplayTextLineContainingBufferPosition(line.Start, 0., ViewRelativePosition.Top) //Force refresh (works partly...)
-        
-        cancellationTokenSource.Cancel() // Stop all ongoing async workflow. 
-        cancellationTokenSource.Dispose()
+            
+        lensByLine <- lensByLineCopy
         cancellationTokenSource <- new CancellationTokenSource()
         cancellationToken <- cancellationTokenSource.Token
         executeCodeLenseAsync() |> Async.Ignore |> RoslynHelpers.StartAsyncSafe cancellationToken
