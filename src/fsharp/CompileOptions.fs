@@ -550,34 +550,40 @@ let inputFileFlagsFsc tcConfigB = inputFileFlagsBoth tcConfigB
 // OptionBlock: Errors and warnings
 //---------------------------------
 
-let errorsAndWarningsFlags (tcConfigB : TcConfigBuilder) = 
+let errorsAndWarningsFlags (tcConfigB: TcConfigBuilder) = 
     [
-        CompilerOption("warnaserror", tagNone, OptionSwitch(fun switch   -> tcConfigB.globalWarnAsError <- switch <> OptionSwitch.Off), None,
-                            Some (FSComp.SR.optsWarnaserrorPM())); 
+        CompilerOption("warnaserror", tagNone, OptionSwitch(fun switch ->
+            tcConfigB.errorSeverityOptions <-
+                { tcConfigB.errorSeverityOptions with
+                    GlobalWarnAsError = switch <> OptionSwitch.Off }), None, Some (FSComp.SR.optsWarnaserrorPM())) 
 
-        CompilerOption("warnaserror", tagWarnList, OptionIntListSwitch (fun n switch -> 
-                                                                    if switch = OptionSwitch.Off then 
-                                                                        tcConfigB.specificWarnAsError <- ListSet.remove (=) n tcConfigB.specificWarnAsError ;
-                                                                        tcConfigB.specificWarnAsWarn  <- ListSet.insert (=) n tcConfigB.specificWarnAsWarn
-                                                                    else 
-                                                                        tcConfigB.specificWarnAsWarn  <- ListSet.remove (=) n tcConfigB.specificWarnAsWarn ;
-                                                                        tcConfigB.specificWarnAsError <- ListSet.insert (=) n tcConfigB.specificWarnAsError), None,
-                            Some (FSComp.SR.optsWarnaserror()));
-           
-        CompilerOption("warn", tagInt, OptionInt (fun n -> 
-                                                     tcConfigB.globalWarnLevel <- 
-                                                     if (n >= 0 && n <= 5) then n 
-                                                     else error(Error(FSComp.SR.optsInvalidWarningLevel(n),rangeCmdArgs))), None,
-                            Some (FSComp.SR.optsWarn()));
-           
-        CompilerOption("nowarn", tagWarnList, OptionStringList (fun n -> tcConfigB.TurnWarningOff(rangeCmdArgs, n)), None,
-                            Some (FSComp.SR.optsNowarn())); 
+        CompilerOption("warnaserror", tagWarnList, OptionIntListSwitch (fun n switch ->
+            let options = tcConfigB.errorSeverityOptions
+            tcConfigB.errorSeverityOptions <-
+                if switch = OptionSwitch.Off then
+                    { options with
+                        WarnAsError = ListSet.remove (=) n options.WarnAsError
+                        WarnAsWarn = ListSet.insert (=) n options.WarnAsWarn }
+                else
+                    { options with
+                        WarnAsError = ListSet.insert (=) n options.WarnAsError
+                        WarnAsWarn = ListSet.remove (=) n options.WarnAsWarn }
+            ), None, Some (FSComp.SR.optsWarnaserror()))
 
-        CompilerOption("warnon", tagWarnList, OptionStringList (fun n -> tcConfigB.TurnWarningOn(rangeCmdArgs,n)), None,
-                            Some(FSComp.SR.optsWarnOn()));                             
+        CompilerOption("warn", tagInt, OptionInt (fun n ->
+                 tcConfigB.errorSeverityOptions <-
+                     { tcConfigB.errorSeverityOptions with
+                         WarnLevel = if (n >= 0 && n <= 5) then n else error(Error (FSComp.SR.optsInvalidWarningLevel(n), rangeCmdArgs)) }
+            ), None, Some (FSComp.SR.optsWarn()))
+
+        CompilerOption("nowarn", tagWarnList, OptionStringList (fun n ->
+            tcConfigB.TurnWarningOff(rangeCmdArgs, n)), None, Some (FSComp.SR.optsNowarn()))
+
+        CompilerOption("warnon", tagWarnList, OptionStringList (fun n ->
+            tcConfigB.TurnWarningOn(rangeCmdArgs,n)), None, Some (FSComp.SR.optsWarnOn()))
         
-        CompilerOption("consolecolors", tagNone, OptionSwitch (fun switch -> enableConsoleColoring <- switch = OptionSwitch.On), None, 
-                            Some (FSComp.SR.optsConsoleColors()))
+        CompilerOption("consolecolors", tagNone, OptionSwitch (fun switch ->
+            enableConsoleColoring <- switch = OptionSwitch.On), None, Some (FSComp.SR.optsConsoleColors()))
     ]
 
 
@@ -1119,7 +1125,15 @@ let GetCoreFsiCompilerOptions (tcConfigB: TcConfigBuilder) =
                                               testingAndQAFlags       tcConfigB])
   ]
 
-
+let ApplyCommandLineArgs(tcConfigB: TcConfigBuilder, sourceFiles: string list, commandLineArgs) =
+    try
+        let sourceFilesAcc = ResizeArray(sourceFiles)
+        let collect name = if not (Filename.isDll name) then sourceFilesAcc.Add(name)
+        ParseCompilerOptions(collect, GetCoreServiceCompilerOptions tcConfigB, commandLineArgs)
+        ResizeArray.toList(sourceFilesAcc)
+    with e ->
+        errorRecovery e range0
+        sourceFiles
 
 
 //----------------------------------------------------------------------------
