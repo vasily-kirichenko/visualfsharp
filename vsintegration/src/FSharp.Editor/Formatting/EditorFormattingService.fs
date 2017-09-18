@@ -49,8 +49,7 @@ type internal FSharpEditorFormattingService
                     x.Tag <> FSharpTokenTag.COMMENT &&
                     x.Tag <> FSharpTokenTag.LINE_COMMENT)
 
-            let! (left, right) =
-                FSharpBraceMatchingService.GetBraceMatchingResult(checker, sourceText, filePath, projectOptions, position, "FormattingService")
+            let! (left, right) = FSharpBraceMatchingService.GetBraceMatchingResult(checker, sourceText, filePath, projectOptions, position)
 
             if right.StartColumn = firstMeaningfulToken.LeftColumn then
                 // Replace the indentation on this line with the indentation of the left bracket

@@ -269,7 +269,7 @@ type internal FSharpCompletionProvider
                     let textWithItemCommitted = sourceText.WithChanges(TextChange(item.Span, nameInCode))
                     let line = sourceText.Lines.GetLineFromPosition(item.Span.Start)
                     let! options = projectInfoManager.TryGetOptionsForEditingDocumentOrProject(document)
-                    let! parsedInput = checker.ParseDocument(document, options, sourceText, userOpName)
+                    let! parsedInput = checker.ParseDocument(document, options, sourceText)
                     let fullNameIdents = fullName |> Option.map (fun x -> x.Split '.') |> Option.defaultValue [||]
                     
                     let insertionPoint = 

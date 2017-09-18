@@ -346,30 +346,9 @@ type internal FSharpSource_DEPRECATED(service:LanguageService_DEPRECATED, textLi
         member source.GetParseTree() : FSharpParseFileResults =
             // get our hands on lss.Parser (FSharpChecker)
             let ic : FSharpChecker = getInteractiveChecker() 
-            let flags = 
-                [|
-                    match iSource.ProjectSite with
-                    | Some pi -> 
-                        yield! pi.CompilerFlags () |> Array.filter(fun flag -> flag.StartsWith("--define:"))
-                    | None -> ()
-                    yield "--noframework"
-
-                |]
             // get a sync parse of the file
-            let co = 
-                { ProjectFileName = fileName + ".dummy.fsproj"
-                  SourceFiles = [| fileName |]
-                  OtherOptions = flags
-                  ReferencedProjects = [| |]
-                  IsIncompleteTypeCheckEnvironment = true
-                  UseScriptResolutionRules = false
-                  LoadTime = new System.DateTime(2000,1,1)   // dummy data, just enough to get a parse
-                  UnresolvedReferences = None
-                  OriginalLoadReferences = []
-                  ExtraProjectInfo=None 
-                  Stamp = None }
-
-            ic.ParseFileInProject(fileName, source.GetText(), co) |> Async.RunSynchronously
+            let po = { FSharpParsingOptions.Default with SourceFiles = [| fileName |] }
+            ic.ParseFile(fileName, source.GetText(), po) |> Async.RunSynchronously
 
         override source.GetCommentFormat() = 
             let mutable info = new CommentInfo()

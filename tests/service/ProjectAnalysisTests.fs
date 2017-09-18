@@ -88,7 +88,7 @@ let mmmm2 : M.CAbbrev = new M.CAbbrev() // note, these don't count as uses of C
     let fileNames = [fileName1; fileName2]
     let args = mkProjectCommandLineArgs (dllName, fileNames)
     let options = checker.GetProjectOptionsFromCommandLineArgs (projFileName, args)
-    let parsingOptions, _ = checker.GetParsingOptionsFromCommandLineArgs(List.ofArray args)
+    let parsingOptions, _ = checker.GetParsingOptionsFromCommandLineArgs(Array.toList args)
     let cleanFileName a = if a = fileName1 then "file1" else if a = fileName2 then "file2" else "??"
 
 [<Test>]

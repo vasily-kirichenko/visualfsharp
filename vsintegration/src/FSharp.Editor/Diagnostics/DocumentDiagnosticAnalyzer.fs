@@ -59,7 +59,7 @@ type internal FSharpDocumentDiagnosticAnalyzer() =
 
     static member GetDiagnostics(checker: FSharpChecker, filePath: string, sourceText: SourceText, textVersionHash: int, options: FSharpProjectOptions, diagnosticType: DiagnosticsType) = 
         async {
-            let! parseResults = checker.ParseFileInProject(filePath, sourceText.ToString(), options, userOpName=userOpName) 
+            let! parseResults = checker.ParseFile(filePath, sourceText.ToString(), { FSharpParsingOptions.Default with SourceFiles = options.SourceFiles }) 
             let! errors = 
                 async {
                     match diagnosticType with

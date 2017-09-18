@@ -25,6 +25,7 @@ open Microsoft.FSharp.Compiler.SourceCodeServices
 type internal FSharpBackgroundRequestExtraData_DEPRECATED =
     { ProjectSite : IProjectSite
       CheckOptions : FSharpProjectOptions
+      ParsingOptions : FSharpParsingOptions
       ProjectFileName : string
       FSharpChecker : FSharpChecker
       Colorizer : Lazy<FSharpColorizer_DEPRECATED> }
@@ -99,6 +100,7 @@ type internal FSharpLanguageServiceBackgroundRequests_DEPRECATED
                             let projectSite = ProjectSitesAndFiles.CreateProjectSiteForScript(fileName, referencedProjectFileNames, checkOptions)
                             { ProjectSite = projectSite
                               CheckOptions = checkOptions 
+                              ParsingOptions = { FSharpParsingOptions.Default with SourceFiles = [| fileName |] }
                               ProjectFileName = projectSite.ProjectFileName()
                               FSharpChecker = checker
                               Colorizer = lazy getColorizer(view) } 
@@ -113,6 +115,7 @@ type internal FSharpLanguageServiceBackgroundRequests_DEPRECATED
                     let data = 
                         {   ProjectSite = projectSite
                             CheckOptions = checkOptions 
+                            ParsingOptions = { FSharpParsingOptions.Default with SourceFiles = checkOptions.SourceFiles }
                             ProjectFileName = projectFileName 
                             FSharpChecker = getInteractiveChecker()
                             Colorizer = lazy getColorizer(view) } 
@@ -129,7 +132,6 @@ type internal FSharpLanguageServiceBackgroundRequests_DEPRECATED
 
             let projectSite = data.ProjectSite
             let checkOptions = data.CheckOptions
-            let projectFileName = data.ProjectFileName
             let interactiveChecker = data.FSharpChecker
             let colorizer = data.Colorizer 
             source.ProjectSite <- Some projectSite
@@ -137,7 +139,7 @@ type internal FSharpLanguageServiceBackgroundRequests_DEPRECATED
             // Do brace matching if required
             if req.ResultSink.BraceMatching then  
                 // Record brace-matching
-                let braceMatches = interactiveChecker.MatchBraces(req.FileName,req.Text,checkOptions) |> Async.RunSynchronously
+                let braceMatches = interactiveChecker.MatchBraces(req.FileName,req.Text, data.ParsingOptions) |> Async.RunSynchronously
                     
                 let mutable pri = 0
                 for (b1,b2) in braceMatches do
@@ -149,14 +151,14 @@ type internal FSharpLanguageServiceBackgroundRequests_DEPRECATED
             | BackgroundRequestReason.ParseFile ->
 
                 // invoke ParseFile directly - relying on cache inside the interactiveChecker
-                let parseResults = interactiveChecker.ParseFileInProject(req.FileName, req.Text, checkOptions) |> Async.RunSynchronously
+                let parseResults = interactiveChecker.ParseFile(req.FileName, req.Text, data.ParsingOptions) |> Async.RunSynchronously
 
                 parseFileResults <- Some parseResults
 
             | _ -> 
                 let syncParseInfoOpt = 
                     if FSharpIntellisenseInfo_DEPRECATED.IsReasonRequiringSyncParse(req.Reason) then
-                        let parseResults = interactiveChecker.ParseFileInProject(req.FileName,req.Text,checkOptions) |> Async.RunSynchronously
+                        let parseResults = interactiveChecker.ParseFile(req.FileName,req.Text,data.ParsingOptions) |> Async.RunSynchronously
                         Some parseResults
                     else None
 
@@ -184,7 +186,7 @@ type internal FSharpLanguageServiceBackgroundRequests_DEPRECATED
                         let parseResults = 
                             match syncParseInfoOpt with 
                             | Some x -> x
-                            | None -> interactiveChecker.ParseFileInProject(req.FileName,req.Text,checkOptions) |> Async.RunSynchronously
+                            | None -> interactiveChecker.ParseFile(req.FileName,req.Text,data.ParsingOptions) |> Async.RunSynchronously
                         
                         // Should never matter but don't let anything in FSharp.Compiler extend the lifetime of 'source'
                         let sr = ref (Some source)
@@ -202,61 +204,50 @@ type internal FSharpLanguageServiceBackgroundRequests_DEPRECATED
                         parseResults,typedResults,true,aborted,req.Timestamp
                 
                 // Now that we have the parseResults, we can SetDependencyFiles().
-                // 
-                // If the set of dependencies changes, the file needs to be re-checked
-                let anyDependenciesChanged = source.SetDependencyFiles(parseResults.DependencyFiles)
-                if anyDependenciesChanged then
-                    req.ResultClearsDirtinessOfFile <- false
-                    // Furthermore, if the project is out-of-date behave just as if we were notified dependency files changed.  
-                    if outOfDateProjectFileNames.Contains(projectFileName) then
-                        interactiveChecker.InvalidateConfiguration(checkOptions)
-                        interactiveChecker.CheckProjectInBackground(checkOptions) 
-                        outOfDateProjectFileNames.Remove(projectFileName) |> ignore
-
-                else
-                    parseFileResults <- Some parseResults
+                
+                parseFileResults <- Some parseResults
                     
-                    match typedResults with 
-                    | None -> 
-                        // OK, the typed results were not available because the background state to typecheck the file is not yet
-                        // ready.  However, we will be notified when it _is_ ready, courtesy of the background builder. Hence
-                        // we can clear the dirty bit and wait for that notification.
-                        req.ResultClearsDirtinessOfFile <- not aborted
-                        req.IsAborted <- aborted
-                        // On 'FullTypeCheck', send a message to the reactor to start the background compile for this project, just in case
-                        if req.Reason = BackgroundRequestReason.FullTypeCheck then    
-                            interactiveChecker.CheckProjectInBackground(checkOptions) 
+                match typedResults with 
+                | None -> 
+                    // OK, the typed results were not available because the background state to typecheck the file is not yet
+                    // ready.  However, we will be notified when it _is_ ready, courtesy of the background builder. Hence
+                    // we can clear the dirty bit and wait for that notification.
+                    req.ResultClearsDirtinessOfFile <- not aborted
+                    req.IsAborted <- aborted
+                    // On 'FullTypeCheck', send a message to the reactor to start the background compile for this project, just in case
+                    if req.Reason = BackgroundRequestReason.FullTypeCheck then    
+                        interactiveChecker.CheckProjectInBackground(checkOptions) 
 
-                    | Some typedResults -> 
-                        // Post the parse errors. 
-                        if containsFreshFullTypeCheck then 
-                            for error in typedResults.Errors do
-                                let span = new TextSpan(iStartLine=error.StartLineAlternate-1,iStartIndex=error.StartColumn,iEndLine=error.EndLineAlternate-1,iEndIndex=error.EndColumn)                             
-                                let sev = 
-                                    match error.Severity with 
-                                    | FSharpErrorSeverity.Warning -> Microsoft.VisualStudio.FSharp.LanguageService.Severity.Warning
-                                    | FSharpErrorSeverity.Error -> Microsoft.VisualStudio.FSharp.LanguageService.Severity.Error
-                                req.ResultSink.AddError(req.FileName, error.Subcategory, error.Message, span, sev)
+                | Some typedResults -> 
+                    // Post the parse errors. 
+                    if containsFreshFullTypeCheck then 
+                        for error in typedResults.Errors do
+                            let span = new TextSpan(iStartLine=error.StartLineAlternate-1,iStartIndex=error.StartColumn,iEndLine=error.EndLineAlternate-1,iEndIndex=error.EndColumn)                             
+                            let sev = 
+                                match error.Severity with 
+                                | FSharpErrorSeverity.Warning -> Microsoft.VisualStudio.FSharp.LanguageService.Severity.Warning
+                                | FSharpErrorSeverity.Error -> Microsoft.VisualStudio.FSharp.LanguageService.Severity.Error
+                            req.ResultSink.AddError(req.FileName, error.Subcategory, error.Message, span, sev)
                           
 
-                        let provideMethodList = (req.Reason = BackgroundRequestReason.MethodTip || req.Reason = BackgroundRequestReason.MatchBracesAndMethodTip)
+                    let provideMethodList = (req.Reason = BackgroundRequestReason.MethodTip || req.Reason = BackgroundRequestReason.MatchBracesAndMethodTip)
 
-                        let scope = new FSharpIntellisenseInfo_DEPRECATED(parseResults, req.Line, req.Col, req.Snapshot, typedResults, projectSite, req.View, colorizer, getDocumentationBuilder(), provideMethodList) 
+                    let scope = new FSharpIntellisenseInfo_DEPRECATED(parseResults, req.Line, req.Col, req.Snapshot, typedResults, projectSite, req.View, colorizer, getDocumentationBuilder(), provideMethodList) 
 
-                        req.ResultIntellisenseInfo <- scope
-                        req.ResultTimestamp <- resultTimestamp  // This will be different from req.Timestamp when we're using stale results.
-                        req.ResultClearsDirtinessOfFile <- containsFreshFullTypeCheck
+                    req.ResultIntellisenseInfo <- scope
+                    req.ResultTimestamp <- resultTimestamp  // This will be different from req.Timestamp when we're using stale results.
+                    req.ResultClearsDirtinessOfFile <- containsFreshFullTypeCheck
 
 
-                        // On 'FullTypeCheck', send a message to the reactor to start the background compile for this project, just in case
-                        if req.Reason = BackgroundRequestReason.FullTypeCheck then    
-                            interactiveChecker.CheckProjectInBackground(checkOptions) 
+                    // On 'FullTypeCheck', send a message to the reactor to start the background compile for this project, just in case
+                    if req.Reason = BackgroundRequestReason.FullTypeCheck then    
+                        interactiveChecker.CheckProjectInBackground(checkOptions) 
                             
-                        // On 'QuickInfo', get the text for the quick info while we're off the UI thread, instead of doing it later
-                        if req.Reason = BackgroundRequestReason.QuickInfo then 
-                            let text,span = scope.GetDataTipText(req.Line, req.Col)
-                            req.ResultQuickInfoText <- text
-                            req.ResultQuickInfoSpan <- span 
+                    // On 'QuickInfo', get the text for the quick info while we're off the UI thread, instead of doing it later
+                    if req.Reason = BackgroundRequestReason.QuickInfo then 
+                        let text,span = scope.GetDataTipText(req.Line, req.Col)
+                        req.ResultQuickInfoText <- text
+                        req.ResultQuickInfoSpan <- span 
 
         with e ->
             req.IsAborted <- true

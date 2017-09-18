@@ -366,6 +366,7 @@ type internal FSharpProjectOptions =
       /// if and only if the stamps are equal
       Stamp: int64 option
     }
+    member ParsingOptions : FSharpParsingOptions
          
 /// The result of calling TypeCheckResult including the possibility of abort and background compiler not caught up.
 [<RequireQualifiedAccess>]

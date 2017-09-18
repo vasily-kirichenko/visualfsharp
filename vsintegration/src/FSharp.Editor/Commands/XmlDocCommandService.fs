@@ -26,8 +26,6 @@ type internal XmlDocCommandFilter
         workspace: VisualStudioWorkspaceImpl
      ) =
 
-    static let userOpName = "XmlDocCommand"
-
     let checker = checkerProvider.Checker
 
     let document =
@@ -69,7 +67,7 @@ type internal XmlDocCommandFilter
                                 let! document = document.Value
                                 let! options = projectInfoManager.TryGetOptionsForEditingDocumentOrProject(document)
                                 let sourceText = wpfTextView.TextBuffer.CurrentSnapshot.GetText()
-                                let! parsedInput = checker.ParseDocument(document, options, sourceText, userOpName)
+                                let! parsedInput = checker.ParseDocument(document, options, sourceText)
                                 let xmlDocables = XmlDocParser.getXmlDocables (sourceText, Some parsedInput) 
                                 let xmlDocablesBelowThisLine = 
                                     // +1 because looking below current line for e.g. a 'member'

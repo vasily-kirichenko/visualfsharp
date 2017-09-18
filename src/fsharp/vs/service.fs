@@ -1516,14 +1516,6 @@ module internal Parser =
           use unwindBP = PushThreadBuildPhaseUntilUnwind BuildPhase.Parse
 
           let parseResult =
-              // If we're editing a script then we define INTERACTIVE otherwise COMPILED.
-              // Since this parsing for intellisense we always define EDITING.
-              let conditionalCompilationDefines =
-                  SourceFileImpl.AdditionalDefinesForUseInEditor(fileName) @ options.ConditionalCompilationDefines
-
-              // Note: we don't really attempt to intern strings across a large scope
-              let lexResourceManager = new Lexhelp.LexResourceManager()
-
               Lexhelp.usingLexbufForParsing(UnicodeLexing.StringAsLexbuf(source), fileName) (fun lexbuf ->
                   let lexfun = createLexerFunction fileName options lexbuf errHandler
                   let isLastCompiland =
@@ -1738,6 +1730,7 @@ type FSharpProjectOptions =
 
     /// Compute the project directory.
     member po.ProjectDirectory = System.IO.Path.GetDirectoryName(po.ProjectFileName)
+    member po.ParsingOptions = { FSharpParsingOptions.Default with SourceFiles = po.SourceFiles }
     override this.ToString() = "FSharpProjectOptions(" + this.ProjectFileName + ")"
  
 

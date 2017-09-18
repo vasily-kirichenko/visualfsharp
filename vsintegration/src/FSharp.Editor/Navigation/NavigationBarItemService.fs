@@ -26,7 +26,6 @@ type internal FSharpNavigationBarItemService
         projectInfoManager: FSharpProjectOptionsManager
     ) =
     
-    static let userOpName = "NavigationBarItem"
     static let emptyResult: IList<NavigationBarItem> = upcast [||]
 
     interface INavigationBarItemService with
@@ -34,7 +33,7 @@ type internal FSharpNavigationBarItemService
             asyncMaybe {
                 let! options = projectInfoManager.TryGetOptionsForEditingDocumentOrProject(document)
                 let! sourceText = document.GetTextAsync(cancellationToken)
-                let! parsedInput = checkerProvider.Checker.ParseDocument(document, options, sourceText=sourceText, userOpName=userOpName)
+                let! parsedInput = checkerProvider.Checker.ParseDocument(document, options, sourceText=sourceText)
                 let navItems = NavigationImpl.getNavigation parsedInput
                 let rangeToTextSpan range = RoslynHelpers.TryFSharpRangeToTextSpan(sourceText, range)
                 return 

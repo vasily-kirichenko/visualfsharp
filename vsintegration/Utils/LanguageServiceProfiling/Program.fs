@@ -156,7 +156,7 @@ let main argv =
                 let! fileResults = checkFile fileVersion
                 match fileResults with
                 | Some fileResults ->
-                    let! parseResult = checker.ParseFileInProject(options.FileToCheck, getFileText(), options.Options) 
+                    let! parseResult = checker.ParseFile(options.FileToCheck, getFileText(), options.Options.ParsingOptions) 
                     for completion in options.CompletionPositions do
                         eprintfn "querying %A %s" completion.QualifyingNames completion.PartialName
                         let! listInfo =
