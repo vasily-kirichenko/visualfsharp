@@ -17,10 +17,7 @@ open Microsoft.FSharp.Compiler.Range
 open Microsoft.FSharp.Compiler.SourceCodeServices
 open Symbols
 
-
 module private UnusedOpens =
-    
-
     let rec visitSynModuleOrNamespaceDecls (parent: Ast.LongIdent) decls : (Set<string> * range) list =
         [ for decl in decls do
             match decl with
@@ -170,7 +167,9 @@ type internal UnusedOpensDiagnosticAnalyzer() =
         } 
 
     override this.AnalyzeSemanticsAsync(document: Document, cancellationToken: CancellationToken) =
+        Logging.Logging.logInfo "UnusedOpens.AnalyzeSemanticsAsync 0"
         asyncMaybe {
+            Logging.Logging.logInfo "UnusedOpens.AnalyzeSemanticsAsync 1"
             do Trace.TraceInformation("{0:n3} (start) UnusedOpensAnalyzer", DateTime.Now.TimeOfDay.TotalSeconds)
             do! Async.Sleep DefaultTuning.UnusedOpensAnalyzerInitialDelay |> liftAsync // be less intrusive, give other work priority most of the time
             let! _parsingOptions, projectOptions = getProjectInfoManager(document).TryGetOptionsForEditingDocumentOrProject(document)
@@ -187,6 +186,9 @@ type internal UnusedOpensDiagnosticAnalyzer() =
                 |> Seq.toImmutableArray
         } 
         |> Async.map (Option.defaultValue ImmutableArray.Empty)
+        |> Async.map (fun x -> 
+            Logging.Logging.logInfo "UnusedOpens.AnalyzeSemanticsAsync 2"
+            x)
         |> RoslynHelpers.StartAsyncAsTask cancellationToken
 
     interface IBuiltInAnalyzer with

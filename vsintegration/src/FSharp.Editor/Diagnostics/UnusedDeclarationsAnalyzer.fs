@@ -99,7 +99,9 @@ type internal UnusedDeclarationsAnalyzer() =
     override __.AnalyzeSyntaxAsync(_, _) = Task.FromResult ImmutableArray<Diagnostic>.Empty
 
     override __.AnalyzeSemanticsAsync(document, cancellationToken) =
+        Logging.Logging.logInfo "UnusedDeclarations.AnalyzeSemanticsAsync 0"
         asyncMaybe {
+            Logging.Logging.logInfo "UnusedDeclarations.AnalyzeSemanticsAsync 1"
             do Trace.TraceInformation("{0:n3} (start) UnusedDeclarationsAnalyzer", DateTime.Now.TimeOfDay.TotalSeconds)
             do! Async.Sleep DefaultTuning.UnusedDeclarationsAnalyzerInitialDelay |> liftAsync // be less intrusive, give other work priority most of the time
             match getProjectInfoManager(document).TryGetOptionsForEditingDocumentOrProject(document) with
@@ -116,6 +118,9 @@ type internal UnusedDeclarationsAnalyzer() =
             | None -> return ImmutableArray.Empty
         }
         |> Async.map (Option.defaultValue ImmutableArray.Empty)
+        |> Async.map (fun x -> 
+            Logging.Logging.logInfo "UnusedDeclarations.AnalyzeSemanticsAsync 2"
+            x)
         |> RoslynHelpers.StartAsyncAsTask cancellationToken
 
     interface IBuiltInAnalyzer with

@@ -47,7 +47,9 @@ type internal SimplifyNameDiagnosticAnalyzer() =
     override this.AnalyzeSyntaxAsync(_, _) = Task.FromResult ImmutableArray<Diagnostic>.Empty
 
     override this.AnalyzeSemanticsAsync(document: Document, cancellationToken: CancellationToken) =
+        Logging.Logging.logInfo "SimplifyName.AnalyzeSemanticsAsync 0"
         asyncMaybe {
+            Logging.Logging.logInfo "SimplifyName.AnalyzeSemanticsAsync 1"
             do! Option.guard Settings.CodeFixes.SimplifyName
             do Trace.TraceInformation("{0:n3} (start) SimplifyName", DateTime.Now.TimeOfDay.TotalSeconds)
             do! Async.Sleep DefaultTuning.SimplifyNameInitialDelay |> liftAsync 
@@ -123,6 +125,9 @@ type internal SimplifyNameDiagnosticAnalyzer() =
             finally guard.Release() |> ignore
         } 
         |> Async.map (Option.defaultValue ImmutableArray.Empty)
+        |> Async.map (fun x ->
+            Logging.Logging.logInfo "SimplifyName.AnalyzeSemanticsAsync 2"
+            x)
         |> RoslynHelpers.StartAsyncAsTask cancellationToken
 
     interface IBuiltInAnalyzer with
