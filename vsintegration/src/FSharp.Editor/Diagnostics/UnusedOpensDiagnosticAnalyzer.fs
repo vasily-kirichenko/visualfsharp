@@ -167,9 +167,9 @@ type internal UnusedOpensDiagnosticAnalyzer() =
         } 
 
     override this.AnalyzeSemanticsAsync(document: Document, cancellationToken: CancellationToken) =
-        Logging.Logging.logInfo "UnusedOpens.AnalyzeSemanticsAsync 0"
         asyncMaybe {
-            Logging.Logging.logInfo "UnusedOpens.AnalyzeSemanticsAsync 1"
+            let! ver = document.GetTextVersionAsync cancellationToken
+            Logging.Logging.logInfof "> UnusedOpens %d" (hash ver)
             do Trace.TraceInformation("{0:n3} (start) UnusedOpensAnalyzer", DateTime.Now.TimeOfDay.TotalSeconds)
             do! Async.Sleep DefaultTuning.UnusedOpensAnalyzerInitialDelay |> liftAsync // be less intrusive, give other work priority most of the time
             let! _parsingOptions, projectOptions = getProjectInfoManager(document).TryGetOptionsForEditingDocumentOrProject(document)
@@ -187,7 +187,7 @@ type internal UnusedOpensDiagnosticAnalyzer() =
         } 
         |> Async.map (Option.defaultValue ImmutableArray.Empty)
         |> Async.map (fun x -> 
-            Logging.Logging.logInfo "UnusedOpens.AnalyzeSemanticsAsync 2"
+            Logging.Logging.logInfo "< UnusedOpens"
             x)
         |> RoslynHelpers.StartAsyncAsTask cancellationToken
 

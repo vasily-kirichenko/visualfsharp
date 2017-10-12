@@ -105,10 +105,10 @@ type internal FSharpDocumentDiagnosticAnalyzer() =
     override this.SupportedDiagnostics = RoslynHelpers.SupportedDiagnostics()
 
     override this.AnalyzeSyntaxAsync(document: Document, cancellationToken: CancellationToken): Task<ImmutableArray<Diagnostic>> =
-        Logging.Logging.logInfo "DocumentDiagnostic.AnalyzeSyntaxAsync 0"
         let projectInfoManager = getProjectInfoManager document
         asyncMaybe {
-            Logging.Logging.logInfo "FSharpDocumentDiagnosticAnalyzer.AnalyzeSyntaxAsync 1"
+            let! ver = document.GetTextVersionAsync cancellationToken
+            Logging.Logging.logInfof "> DocumentDiagnostic.Syntax %d" (hash ver)
             let! parsingOptions, projectOptions = projectInfoManager.TryGetOptionsForEditingDocumentOrProject(document)
             let! sourceText = document.GetTextAsync(cancellationToken)
             let! textVersion = document.GetTextVersionAsync(cancellationToken)
@@ -118,15 +118,15 @@ type internal FSharpDocumentDiagnosticAnalyzer() =
         } 
         |> Async.map (Option.defaultValue ImmutableArray<Diagnostic>.Empty)
         |> Async.map (fun x ->
-            Logging.Logging.logInfo "DocumentDiagnostic.AnalyzeSyntaxAsync 2"
+            Logging.Logging.logInfo "< DocumentDiagnostic.Syntax"
             x)
         |> RoslynHelpers.StartAsyncAsTask cancellationToken
 
     override this.AnalyzeSemanticsAsync(document: Document, cancellationToken: CancellationToken): Task<ImmutableArray<Diagnostic>> =
-        Logging.Logging.logInfo "DocumentDiagnostic.AnalyzeSemanticsAsync 0"
         let projectInfoManager = getProjectInfoManager document
         asyncMaybe {
-            Logging.Logging.logInfo "DocumentDiagnostic.AnalyzeSemanticsAsync 1"
+            let! ver = document.GetTextVersionAsync cancellationToken
+            Logging.Logging.logInfof "< DocumentDiagnostic %d" (hash ver)
             let! parsingOptions, projectOptions = projectInfoManager.TryGetOptionsForDocumentOrProject(document) 
             let! sourceText = document.GetTextAsync(cancellationToken)
             let! textVersion = document.GetTextVersionAsync(cancellationToken)
@@ -136,7 +136,7 @@ type internal FSharpDocumentDiagnosticAnalyzer() =
         }
         |> Async.map (Option.defaultValue ImmutableArray<Diagnostic>.Empty)
         |> Async.map (fun x ->
-            Logging.Logging.logInfo "DocumentDiagnostic.AnalyzeSemanticsAsync 2"
+            Logging.Logging.logInfo "> DocumentDiagnostic.Semantics"
             x)
         |> RoslynHelpers.StartAsyncAsTask cancellationToken
 
