@@ -667,7 +667,7 @@ let LocateEnv ccu env enclosingNamespacePath =
 let BuildRootModuleType enclosingNamespacePath (cpath:CompilationPath) mtyp = 
     (enclosingNamespacePath, (cpath, (mtyp, None))) 
         ||> List.foldBack (fun id (cpath, (mtyp, mspec)) ->
-            let a, b = wrapModuleOrNamespaceTypeInNamespace  id cpath.ParentCompPath mtyp 
+            let a, b = wrapModuleOrNamespaceTypeInNamespace  id cpath.ParentCompPath mtyp None
             cpath.ParentCompPath, (a, match mspec with Some _ -> mspec | None -> Some b))
         |> snd
         

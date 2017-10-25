@@ -574,6 +574,8 @@ type Entity =
       /// Used during codegen to hold the ILX representation indicating how to access the type 
       // MUTABILITY: only for unpickle linkage and caching
       mutable entity_il_repr_cache : CompiledTypeRepr cache
+
+      mutable entity_parent_namespace : Entity option
     }
     /// The name of the namespace, module or type, possibly with mangling, e.g. List`1, List or FailureException 
     member x.LogicalName = x.entity_logical_name
@@ -845,6 +847,7 @@ type Entity =
         | Some x  -> NameMap.tryFind n x.CasesTable.CasesByName
         | None -> None
 
+    member x.ParentNamespace = x.entity_parent_namespace
     
     /// Create a new entity with empty, unlinked data. Only used during unpickling of F# metadata.
     static member NewUnlinked() : Entity = 
@@ -868,7 +871,8 @@ type Entity =
           entity_pubpath = Unchecked.defaultof<_>
           entity_accessiblity= Unchecked.defaultof<_>
           entity_cpath = Unchecked.defaultof<_>
-          entity_il_repr_cache = Unchecked.defaultof<_> }
+          entity_il_repr_cache = Unchecked.defaultof<_>
+          entity_parent_namespace = Unchecked.defaultof<_> }
 
     /// Create a new entity with the given backing data. Only used during unpickling of F# metadata.
     static member New _reason (data: Entity) : Entity  = data
@@ -1828,10 +1832,11 @@ and Construct =
             entity_xmldocsig=""        
             entity_pubpath = Some pubpath
             entity_cpath = Some cpath
-            entity_il_repr_cache = newCache() } 
+            entity_il_repr_cache = newCache() 
+            entity_parent_namespace = None } // todo how to get an Entiry namespace for provided types?
 #endif
 
-    static member NewModuleOrNamespace cpath access (id:Ident) xml attribs mtype = 
+    static member NewModuleOrNamespace cpath access (id:Ident) xml attribs mtype parentNs = 
         let stamp = newStamp() 
         // Put the module suffix on if needed 
         Tycon.New "mspec"
@@ -1855,7 +1860,8 @@ and Construct =
             entity_attribs=attribs
             entity_xmldoc=xml
             entity_xmldocsig=""        
-            entity_il_repr_cache = newCache() } 
+            entity_il_repr_cache = newCache()
+            entity_parent_namespace = parentNs } 
 
 and Accessibility = 
     /// Indicates the construct can only be accessed from any code in the given type constructor, module or assembly. [] indicates global scope. 
@@ -2742,6 +2748,7 @@ and NonLocalEntityRef    =
                                     (Some cpath) 
                                     (TAccess []) (ident(path.[k],m)) XmlDoc.Empty [] 
                                     (MaybeLazy.Strict (Construct.NewEmptyModuleOrNamespaceType Namespace)) 
+                                    (Some entity)
                             entity.ModuleOrNamespaceType.AddModuleOrNamespaceByMutation(newEntity)
                             injectNamespacesFromIToJ newEntity (k+1)
                     let newEntity = injectNamespacesFromIToJ entity i
@@ -4895,7 +4902,7 @@ let NewModuleOrNamespaceType mkind tycons vals =
 let NewEmptyModuleOrNamespaceType mkind = NewModuleOrNamespaceType mkind [] []
 
 /// Create a new TAST Entity node for an F# exception definition
-let NewExn cpath (id:Ident) access repr attribs doc = 
+let NewExn cpath (id:Ident) access repr attribs doc parentNs = 
     Tycon.New "exnc"
       { entity_stamp=newStamp()
         entity_attribs=attribs
@@ -4917,7 +4924,8 @@ let NewExn cpath (id:Ident) access repr attribs doc =
         entity_tycon_abbrev = None
         entity_tycon_repr = TNoRepr
         entity_flags=EntityFlags(usesPrefixDisplay=false, isModuleOrNamespace=false, preEstablishedHasDefaultCtor=false, hasSelfReferentialCtor=false, isStructRecordOrUnionType=false)
-        entity_il_repr_cache= newCache()   } 
+        entity_il_repr_cache= newCache()   
+        entity_parent_namespace = parentNs } 
 
 /// Create a new TAST RecdField node for an F# class, struct or record field
 let NewRecdField  stat konst id ty isMutable isVolatile pattribs fattribs docOption access secret =
@@ -4936,7 +4944,7 @@ let NewRecdField  stat konst id ty isMutable isVolatile pattribs fattribs docOpt
       rfield_other_range = None }
 
     
-let NewTycon (cpath, nm, m, access, reprAccess, kind, typars, docOption, usesPrefixDisplay, preEstablishedHasDefaultCtor, hasSelfReferentialCtor, mtyp) =
+let NewTycon (cpath, nm, m, access, reprAccess, kind, typars, docOption, usesPrefixDisplay, preEstablishedHasDefaultCtor, hasSelfReferentialCtor, mtyp, parentNs) =
     let stamp = newStamp() 
     Tycon.New "tycon"
       { entity_stamp=stamp
@@ -4959,14 +4967,15 @@ let NewTycon (cpath, nm, m, access, reprAccess, kind, typars, docOption, usesPre
         entity_xmldocsig=""        
         entity_pubpath=cpath |> Option.map (fun (cp:CompilationPath) -> cp.NestedPublicPath (mkSynId m nm))
         entity_cpath = cpath
-        entity_il_repr_cache = newCache() } 
+        entity_il_repr_cache = newCache() 
+        entity_parent_namespace = parentNs } 
 
 
-let NewILTycon nlpath (nm,m) tps (scoref:ILScopeRef, enc, tdef:ILTypeDef) mtyp =
+let NewILTycon nlpath (nm,m) tps (scoref:ILScopeRef, enc, tdef:ILTypeDef) mtyp (parentNs: Entity option) =
 
     // NOTE: hasSelfReferentialCtor=false is an assumption about mscorlib
     let hasSelfReferentialCtor = tdef.IsClass && (not scoref.IsAssemblyRef && scoref.AssemblyRef.Name = "mscorlib")
-    let tycon = NewTycon(nlpath, nm, m, taccessPublic, taccessPublic, TyparKind.Type, tps, XmlDoc.Empty, true, false, hasSelfReferentialCtor, mtyp)
+    let tycon = NewTycon(nlpath, nm, m, taccessPublic, taccessPublic, TyparKind.Type, tps, XmlDoc.Empty, true, false, hasSelfReferentialCtor, mtyp, parentNs)
 
     tycon.entity_tycon_repr <- TILObjectRepr (TILObjectReprData (scoref,enc,tdef))
     tycon.TypeContents.tcaug_closed <- true

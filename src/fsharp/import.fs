@@ -3,6 +3,8 @@
 /// Functions to import .NET binary metadata as TAST objects
 module internal Microsoft.FSharp.Compiler.Import
 
+#nowarn "40"
+
 open System.Reflection
 open System.Collections.Generic
 open Internal.Utilities
@@ -442,7 +444,7 @@ let multisetDiscriminateAndMap nodef tipf (items: ('Key list * 'Value) list) =
  
 
 /// Import an IL type definition as a new F# TAST Entity node.
-let rec ImportILTypeDef amap m scoref (cpath:CompilationPath) enc nm (tdef:ILTypeDef)  =
+let rec ImportILTypeDef amap m scoref (cpath:CompilationPath) enc nm (tdef:ILTypeDef) (parentNs: Entity option)  =
     let lazyModuleOrNamespaceTypeForNestedTypes = 
         lazy 
             let cpath = cpath.NestedCompPath nm ModuleOrType
@@ -456,11 +458,11 @@ let rec ImportILTypeDef amap m scoref (cpath:CompilationPath) enc nm (tdef:ILTyp
         (LazyWithContext.Create((fun m -> ImportILGenericParameters amap m scoref [] tdef.GenericParams), ErrorLogger.findOriginalException))
         (scoref,enc,tdef) 
         (MaybeLazy.Lazy lazyModuleOrNamespaceTypeForNestedTypes)
+        parentNs
        
-
 /// Import a list of (possibly nested) IL types as a new ModuleOrNamespaceType node
 /// containing new entities, bucketing by namespace along the way.
-and ImportILTypeDefList amap m (cpath:CompilationPath) enc items =
+and ImportILTypeDefList amap m (cpath:CompilationPath) enc (parentNs: Entity option) items =
     // Split into the ones with namespaces and without. Add the ones with namespaces in buckets.
     // That is, discriminate based in the first element of the namespace list (e.g. "System") 
     // and, for each bag, fold-in a lazy computation to add the types under that bag .
@@ -473,11 +475,12 @@ and ImportILTypeDefList amap m (cpath:CompilationPath) enc items =
         items 
         |> multisetDiscriminateAndMap 
             (fun n tgs ->
-                let modty = lazy (ImportILTypeDefList amap m (cpath.NestedCompPath n Namespace) enc tgs)
-                NewModuleOrNamespace (Some cpath) taccessPublic (mkSynId m n) XmlDoc.Empty [] (MaybeLazy.Lazy modty))
+                let rec modty = lazy (ImportILTypeDefList amap m (cpath.NestedCompPath n Namespace) enc (Some ns) tgs)
+                and ns = NewModuleOrNamespace (Some cpath) taccessPublic (mkSynId m n) XmlDoc.Empty [] (MaybeLazy.Lazy modty) parentNs
+                in ns)
             (fun (n,info:Lazy<_>) -> 
                 let (scoref2,_,lazyTypeDef:Lazy<ILTypeDef>) = info.Force()
-                ImportILTypeDef amap m scoref2 cpath enc n (lazyTypeDef.Force()))
+                ImportILTypeDef amap m scoref2 cpath enc n (lazyTypeDef.Force()) parentNs)
 
     let kind = match enc with [] -> Namespace | _ -> ModuleOrType
     NewModuleOrNamespaceType kind entities []
@@ -489,7 +492,7 @@ and ImportILTypeDefs amap m scoref cpath enc (tdefs: ILTypeDefs) =
     tdefs.AsArrayOfLazyTypeDefs
     |> Array.map (fun (ns,n,attrs,lazyTypeDef) -> (ns,(n,notlazy(scoref,attrs,lazyTypeDef))))
     |> Array.toList
-    |> ImportILTypeDefList amap m cpath enc
+    |> ImportILTypeDefList amap m cpath enc None
 
 /// Import the main type definitions in an IL assembly.
 ///
@@ -518,7 +521,7 @@ let ImportILAssemblyExportedType amap m auxModLoader (scoref:ILScopeRef) (export
                      scoref,exportedType.CustomAttrs,lazyTypeDef)
               
         let ns,n = splitILTypeName exportedType.Name
-        [ ImportILTypeDefList amap m (CompPath(scoref,[])) [] [(ns,(n,info))]  ]
+        [ ImportILTypeDefList amap m (CompPath(scoref,[])) [] None [(ns,(n,info))]  ]
 
 /// Import the "exported types" table for multi-module assemblies. 
 let ImportILAssemblyExportedTypes amap m auxModLoader scoref (exportedTypes: ILExportedTypesAndForwarders) = 
@@ -572,7 +575,7 @@ let ImportILAssembly(amap:(unit -> ImportMap),m,auxModuleLoader,sref,sourceDir,f
             ImportProvidedType = (fun ty -> ImportProvidedType (amap()) m ty)
 #endif
             QualifiedName= Some sref.QualifiedName
-            Contents = NewCcuContents sref m nm mty 
+            Contents = NewCcuContents sref m nm mty None
             ILScopeRef = sref
             Stamp = newStamp()
             SourceCodeDirectory = sourceDir  // note: not an accurate value, but IL assemblies don't give us this information in any attributes. 

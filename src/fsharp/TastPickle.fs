@@ -2003,6 +2003,7 @@ and u_entity_spec_data st : Entity =
       entity_modul_contents=MaybeLazy.Lazy x13
       entity_exn_info=x14
       entity_il_repr_cache=newCache()  
+      entity_parent_namespace=None //todo
       } 
 
 and u_tcaug st = 

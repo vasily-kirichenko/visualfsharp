@@ -803,9 +803,9 @@ val ComputeRemappingFromImplementationToSignature : TcGlobals -> ModuleOrNamespa
 val ComputeHidingInfoAtAssemblyBoundary : ModuleOrNamespaceType -> SignatureHidingInfo -> SignatureHidingInfo
 val mkRepackageRemapping : SignatureRepackageInfo -> Remap 
 
-val wrapModuleOrNamespaceExprInNamespace : Ident -> CompilationPath -> ModuleOrNamespaceExpr -> ModuleOrNamespaceExpr
-val wrapModuleOrNamespaceTypeInNamespace : Ident -> CompilationPath -> ModuleOrNamespaceType -> ModuleOrNamespaceType * ModuleOrNamespace  
-val wrapModuleOrNamespaceType : Ident -> CompilationPath -> ModuleOrNamespaceType -> ModuleOrNamespace
+val wrapModuleOrNamespaceExprInNamespace : Ident -> CompilationPath -> ModuleOrNamespaceExpr -> Entity option -> ModuleOrNamespaceExpr
+val wrapModuleOrNamespaceTypeInNamespace : Ident -> CompilationPath -> ModuleOrNamespaceType -> Entity option -> ModuleOrNamespaceType * ModuleOrNamespace  
+val wrapModuleOrNamespaceType : Ident -> CompilationPath -> ModuleOrNamespaceType -> Entity option -> ModuleOrNamespace
 
 val SigTypeOfImplFile : TypedImplFile -> ModuleOrNamespaceType
 

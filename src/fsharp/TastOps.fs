@@ -996,7 +996,7 @@ let ensureCcuHasModuleOrNamespaceAtPath (ccu:CcuThunk) path (CompPath(_, cpath))
         | (hpath::tpath), ((_, mkind)::tcpath)  -> 
             let modName = hpath.idText 
             if not (Map.containsKey modName mtype.AllEntitiesByCompiledAndLogicalMangledNames) then 
-                let smodul = NewModuleOrNamespace (Some(CompPath(scoref, prior_cpath))) taccessPublic hpath xml [] (MaybeLazy.Strict (NewEmptyModuleOrNamespaceType mkind))
+                let smodul = NewModuleOrNamespace (Some(CompPath(scoref, prior_cpath))) taccessPublic hpath xml [] (MaybeLazy.Strict (NewEmptyModuleOrNamespaceType mkind)) (Some modul)
                 mtype.AddModuleOrNamespaceByMutation(smodul);
             let modul = Map.find modName mtype.AllEntitiesByCompiledAndLogicalMangledNames 
             loop (prior_cpath@[(modName, Namespace)]) tpath tcpath modul 
@@ -3652,15 +3652,15 @@ end
 // Helpers related to type checking modules & namespaces
 //--------------------------------------------------------------------------
 
-let wrapModuleOrNamespaceType id cpath mtyp = 
-    NewModuleOrNamespace (Some cpath)  taccessPublic  id  XmlDoc.Empty  [] (MaybeLazy.Strict mtyp)
+let wrapModuleOrNamespaceType id cpath mtyp parentNs = 
+    NewModuleOrNamespace (Some cpath)  taccessPublic  id  XmlDoc.Empty  [] (MaybeLazy.Strict mtyp) parentNs
 
-let wrapModuleOrNamespaceTypeInNamespace id cpath mtyp = 
-    let mspec = wrapModuleOrNamespaceType id cpath mtyp
+let wrapModuleOrNamespaceTypeInNamespace id cpath mtyp parentNs = 
+    let mspec = wrapModuleOrNamespaceType id cpath mtyp parentNs
     NewModuleOrNamespaceType Namespace [ mspec ] [], mspec
 
-let wrapModuleOrNamespaceExprInNamespace (id :Ident) cpath mexpr = 
-    let mspec = wrapModuleOrNamespaceType id cpath (NewEmptyModuleOrNamespaceType Namespace)
+let wrapModuleOrNamespaceExprInNamespace (id: Ident) cpath mexpr parentNs = 
+    let mspec = wrapModuleOrNamespaceType id cpath (NewEmptyModuleOrNamespaceType Namespace) parentNs
     TMDefRec (false, [], [ModuleOrNamespaceBinding.Module(mspec, mexpr)], id.idRange)
 
 // cleanup: make this a property
