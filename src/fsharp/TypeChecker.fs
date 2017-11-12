@@ -1005,7 +1005,8 @@ let TranslateTopArgSynInfo isArg m tcAttributes (SynArgInfo(attrs, isOpt, nm)) =
             [ ( { TypeName=LongIdentWithDots(pathToSynLid m ["Microsoft";"FSharp";"Core";"OptionalArgument"], []) 
                   ArgExpr=mkSynUnit m 
                   Target=None 
-                  AppliesToGetterAndSetter=false 
+                  AppliesToGetterAndSetter=false
+                  IsSynthetic=true
                   Range=m} : SynAttribute) ] 
          else 
             []
@@ -10527,9 +10528,9 @@ and TcAttribute canFail cenv (env: TcEnv) attrTgt (synAttr: SynAttribute)  =
             let tyid = mkSynId tyid.idRange n
             let tycon = (typath @ [tyid])
             let ad = env.eAccessRights
-            match ResolveTypeLongIdent cenv.tcSink cenv.nameResolver ItemOccurence.UseInAttribute OpenQualified env.eNameResEnv ad tycon TypeNameResolutionStaticArgsInfo.DefiniteEmpty  PermitDirectReferenceToGeneratedType.No with
+            match ResolveTypeLongIdent cenv.tcSink cenv.nameResolver (ItemOccurence.UseInAttribute synAttr.IsSynthetic) OpenQualified env.eNameResEnv ad tycon TypeNameResolutionStaticArgsInfo.DefiniteEmpty  PermitDirectReferenceToGeneratedType.No with
             | Exception err -> raze(err)
-            | _ ->  success(TcTypeAndRecover cenv NoNewTypars CheckCxs ItemOccurence.UseInAttribute env tpenv (SynType.App(SynType.LongIdent(LongIdentWithDots(tycon, [])), None, [], [], None, false, mAttr)) )
+            | _ ->  success(TcTypeAndRecover cenv NoNewTypars CheckCxs (ItemOccurence.UseInAttribute synAttr.IsSynthetic) env tpenv (SynType.App(SynType.LongIdent(LongIdentWithDots(tycon, [])), None, [], [], None, false, mAttr)) )
         ForceRaise ((try1 (tyid.idText + "Attribute")) |> ResultOrException.otherwise (fun () -> (try1 tyid.idText)))
 
     let ad = env.eAccessRights

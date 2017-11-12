@@ -2283,7 +2283,7 @@ type FSharpSymbolUse(g:TcGlobals, denv: DisplayEnv, symbol:FSharpSymbol, itemOcc
     member __.IsFromDefinition = (match itemOcc with ItemOccurence.Binding -> true | _ -> false)
     member __.IsFromPattern = (match itemOcc with ItemOccurence.Pattern -> true | _ -> false)
     member __.IsFromType = (match itemOcc with ItemOccurence.UseInType -> true | _ -> false)
-    member __.IsFromAttribute = (match itemOcc with ItemOccurence.UseInAttribute -> true | _ -> false)
+    member __.IsFromAttribute = (match itemOcc with ItemOccurence.UseInAttribute _ -> true | _ -> false)
     member __.IsFromDispatchSlotImplementation = (match itemOcc with ItemOccurence.Implemented -> true | _ -> false)
     member __.IsFromComputationExpression = 
         match symbol.Item, itemOcc with 

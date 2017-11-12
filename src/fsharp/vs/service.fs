@@ -1246,7 +1246,7 @@ type TypeCheckInfo
        (fun () -> 
         let (|LegitTypeOccurence|_|) = function
             | ItemOccurence.UseInType
-            | ItemOccurence.UseInAttribute
+            | ItemOccurence.UseInAttribute false
             | ItemOccurence.Use _
             | ItemOccurence.Binding _
             | ItemOccurence.Pattern _ -> Some()

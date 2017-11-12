@@ -1063,6 +1063,8 @@ and
       Target: Ident option
       /// Is this attribute being applied to a property getter or setter?
       AppliesToGetterAndSetter: bool
+      /// Is this attribute synthesized by the compiler
+      IsSynthetic: bool
       Range: range }
 
 and

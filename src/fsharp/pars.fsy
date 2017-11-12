@@ -1387,17 +1387,17 @@ attribute:
   /* A custom attribute */
   | path opt_HIGH_PRECEDENCE_APP opt_atomicExprAfterType 
      { let arg = match $3 with None -> mkSynUnit $1.Range | Some e -> e 
-       ({ TypeName=$1; ArgExpr=arg; Target=None; AppliesToGetterAndSetter=false; Range=$1.Range } : SynAttribute) }
+       ({ TypeName=$1; ArgExpr=arg; Target=None; AppliesToGetterAndSetter=false; Range=$1.Range; IsSynthetic=false } : SynAttribute) }
 
   /* A custom attribute with an attribute target */
   | attributeTarget path opt_HIGH_PRECEDENCE_APP opt_atomicExprAfterType 
      { let arg = match $4 with None -> mkSynUnit $2.Range | Some e -> e 
-       ({ TypeName=$2; ArgExpr=arg; Target=$1; AppliesToGetterAndSetter=false; Range=$2.Range } : SynAttribute) }
+       ({ TypeName=$2; ArgExpr=arg; Target=$1; AppliesToGetterAndSetter=false; Range=$2.Range; IsSynthetic=false } : SynAttribute) }
 
   /* A custom attribute with an attribute target */
   | attributeTarget OBLOCKBEGIN path oblockend opt_HIGH_PRECEDENCE_APP opt_atomicExprAfterType 
      { let arg = match $6 with None -> mkSynUnit $3.Range | Some e -> e 
-       ({ TypeName=$3; ArgExpr=arg; Target=$1; AppliesToGetterAndSetter=false; Range=$3.Range } : SynAttribute) }
+       ({ TypeName=$3; ArgExpr=arg; Target=$1; AppliesToGetterAndSetter=false; Range=$3.Range; IsSynthetic=false } : SynAttribute) }
 
 
 /* The target of a custom attribute */

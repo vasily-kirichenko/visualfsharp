@@ -242,7 +242,7 @@ type internal ItemOccurence =
     | Binding 
     | Use 
     | UseInType 
-    | UseInAttribute 
+    | UseInAttribute of isSynthetic: bool
     | Pattern 
     | Implemented 
     | RelatedText

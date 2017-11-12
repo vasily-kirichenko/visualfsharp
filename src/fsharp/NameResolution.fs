@@ -1216,7 +1216,7 @@ type ItemOccurence =
     /// This is a usage of a type name in a type
     | UseInType 
     /// This is a usage of a type name in an attribute
-    | UseInAttribute 
+    | UseInAttribute of isSynthetic: bool
     /// Inside pattern matching
     | Pattern 
     /// Abstract slot gets implemented
@@ -2850,7 +2850,7 @@ let rec ResolveTypeLongIdentPrim (ncenv:NameResolver) occurence fullyQualified m
                     |> Seq.filter (fun kv -> IsEntityAccessible ncenv.amap m ad kv.Value)
                     |> Seq.collect (fun e -> 
                         match occurence with
-                        | ItemOccurence.UseInAttribute -> 
+                        | ItemOccurence.UseInAttribute _ -> 
                             [yield e.Value.DisplayName
                              yield e.Value.DemangledModuleOrNamespaceName
                              if e.Value.DisplayName.EndsWith "Attribute" then
