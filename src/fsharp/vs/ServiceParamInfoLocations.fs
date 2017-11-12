@@ -42,7 +42,7 @@ module internal NoteworthyParamInfoLocationsImpl =
         // we found it, dig out ident
         match synExpr with
         | SynExpr.Ident(id) -> Some ([id.idText], id.idRange)
-        | SynExpr.LongIdent(_, LongIdentWithDots(lid, _), _, lidRange) 
+        | SynExpr.LongIdent(_, LongIdentWithDots(lid, _), _, _, lidRange) 
         | SynExpr.DotGet(_, _, LongIdentWithDots(lid, _), lidRange) -> Some (pathOfLid lid, lidRange)
         | SynExpr.TypeApp(synExpr, _, _synTypeList, _commas, _, _, _range) -> digOutIdentFromFuncExpr synExpr 
         | _ -> None
@@ -70,7 +70,7 @@ module internal NoteworthyParamInfoLocationsImpl =
         | SynExpr.App(ExprAtomicFlag.NonAtomic, _, 
                         SynExpr.App(ExprAtomicFlag.NonAtomic, true, 
                                     SynExpr.Ident op, 
-                                    SynExpr.LongIdent(true(*isOptional*), LongIdentWithDots([n], _), _ref, _lidrange), _range), 
+                                    SynExpr.LongIdent(true(*isOptional*), LongIdentWithDots([n], _), _ref, _, _lidrange), _range), 
                         _, _) when op.idText="op_Equality" -> Some n.idText
         | _ -> None
 

@@ -328,7 +328,7 @@ module internal AstTraversal =
                     let ok = 
                         match isPartOfArrayOrList, synExpr with
                         | false, SynExpr.Ident ident -> visitor.VisitRecordField(path, None, Some (LongIdentWithDots([ident], [])))
-                        | false, SynExpr.LongIdent(false, lidwd, _, _) -> visitor.VisitRecordField(path, None, Some lidwd)
+                        | false, SynExpr.LongIdent(false, lidwd, _, _, _) -> visitor.VisitRecordField(path, None, Some lidwd)
                         | _ -> None
                     if ok.IsSome then ok
                     else
@@ -389,7 +389,7 @@ module internal AstTraversal =
                      | Some(x) -> yield dive x x.Range traverseSynExpr]
                     |> pick expr
                 | SynExpr.Ident(_ident) -> None
-                | SynExpr.LongIdent(_, _longIdent, _altNameRefCell, _range) -> None
+                | SynExpr.LongIdent(_, _longIdent, _altNameRefCell, _, _range) -> None
                 | SynExpr.LongIdentSet(_longIdent, synExpr, _range) -> traverseSynExpr synExpr
                 | SynExpr.DotGet(synExpr, _dotm, _longIdent, _range) -> traverseSynExpr synExpr
                 | SynExpr.DotSet(synExpr, _longIdent, synExpr2, _range) ->

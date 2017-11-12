@@ -630,7 +630,7 @@ module ParsedInput =
                 walkType ty
                 List.iter walkBinding bindings
                 List.iter walkInterfaceImpl ifaces
-            | SynExpr.LongIdent (_, ident, _, _) -> addLongIdentWithDots ident
+            | SynExpr.LongIdent (_, ident, _, false, _) -> addLongIdentWithDots ident
             | SynExpr.For (_, ident, e1, _, e2, e3, _) ->
                 addIdent ident
                 List.iter walkExpr [e1; e2; e3]

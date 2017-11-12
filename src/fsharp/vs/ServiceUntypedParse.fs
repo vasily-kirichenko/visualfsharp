@@ -430,7 +430,7 @@ module UntypedParseImpl =
         member this.VisitExpr(_path, traverseSynExpr, defaultTraverse, expr) =
             let expr = expr // fix debugger locals
             match expr with
-            | SynExpr.LongIdent(_, LongIdentWithDots(longIdent,_), _altNameRefCell, _range) -> 
+            | SynExpr.LongIdent(_, LongIdentWithDots(longIdent,_), _altNameRefCell, _, _range) -> 
                 let _,r = CheckLongIdent(longIdent)
                 Some(r)
             | SynExpr.LongIdentSet(LongIdentWithDots(longIdent,_), synExpr, _range) -> 
@@ -519,7 +519,7 @@ module UntypedParseImpl =
                 match expr with
                 | SynExpr.Paren(e, _, _, _) when foundCandidate -> 
                     TryGetExpression foundCandidate e
-                | SynExpr.LongIdent(_isOptional, LongIdentWithDots(lid,_), _altNameRefCell, _m) -> 
+                | SynExpr.LongIdent(_isOptional, LongIdentWithDots(lid,_), _altNameRefCell, _, _m) -> 
                     getLidParts lid |> Some
                 | SynExpr.DotGet(leftPart, _, LongIdentWithDots(lid,_), _) when (rangeContainsPos (rangeOfLid lid) pos) || foundCandidate -> 
                     // requested position is at the lid part of the DotGet
@@ -594,7 +594,7 @@ module UntypedParseImpl =
                             | Some(n,_) -> Some((List.item n lid).idRange.End, (List.length lid = n+1)    // foo.$
                                                                               || (posGeq (List.item (n+1) lid).idRange.Start pos))  // foo.$bar
                         match expr with
-                        | SynExpr.LongIdent(_isOptional, lidwd, _altNameRefCell, _m) ->
+                        | SynExpr.LongIdent(_isOptional, lidwd, _altNameRefCell, _, _m) ->
                             traverseLidOrElse None lidwd
                         | SynExpr.LongIdentSet(lidwd, exprRhs, _m) ->
                             [ dive lidwd lidwd.Range (traverseLidOrElse None)
@@ -763,7 +763,7 @@ module UntypedParseImpl =
             |> Option.orElse (Option.bind walkExpr e1)
 
         and walkExprWithKind (parentKind: EntityKind option) = function
-            | SynExpr.LongIdent (_, LongIdentWithDots(_, dotRanges), _, r) ->
+            | SynExpr.LongIdent (_, LongIdentWithDots(_, dotRanges), _, _, r) ->
                 match dotRanges with
                 | [] when isPosInRange r -> parentKind |> Option.orElse (Some (EntityKind.FunctionOrValue false)) 
                 | firstDotRange :: _  ->
@@ -1090,10 +1090,10 @@ module UntypedParseImpl =
             | (SynExpr.App (_, false, SynExpr.TypeApp(SynExpr.Ident id, _, _, _, mGreaterThan, _, _), arg, _)) -> 
                 // A<_>()
                 Some (endOfClosingTokenOrIdent mGreaterThan id , findSetters arg)
-            | (SynExpr.App (_, false, SynExpr.LongIdent(_, lid, _, _), arg, _)) -> 
+            | (SynExpr.App (_, false, SynExpr.LongIdent(_, lid, _, _, _), arg, _)) -> 
                 // A.B()
                 Some (endOfLastIdent lid, findSetters arg)
-            | (SynExpr.App (_, false, SynExpr.TypeApp(SynExpr.LongIdent(_, lid, _, _), _, _, _, mGreaterThan, _, _), arg, _)) -> 
+            | (SynExpr.App (_, false, SynExpr.TypeApp(SynExpr.LongIdent(_, lid, _, _, _), _, _, _, mGreaterThan, _, _), arg, _)) -> 
                 // A.B<_>()
                 Some (endOfClosingTokenOrLastIdent mGreaterThan lid, findSetters arg)
             | _ -> None

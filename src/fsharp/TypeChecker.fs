@@ -4795,7 +4795,7 @@ and TcStaticConstantParameter cenv (env:TcEnv) tpenv kind (v:SynType) idOpt cont
         v, tpenv'
     | SynType.LongIdent(lidwd) ->
         let m = lidwd.Range
-        TcStaticConstantParameter cenv env tpenv kind (SynType.StaticConstantExpr(SynExpr.LongIdent(false, lidwd, None, m), m)) idOpt container
+        TcStaticConstantParameter cenv env tpenv kind (SynType.StaticConstantExpr(SynExpr.LongIdent(false, lidwd, None, false, m), m)) idOpt container
     | _ ->  
         fail()
 
@@ -5258,9 +5258,9 @@ and TcPat warnOnUpper cenv env topValInfo vFlags (tpenv, names, takenNames) ty p
                     let args = match args with SynConstructorArgs.Pats args -> args  | _ -> failwith "impossible: active patterns can be used only with SynConstructorArgs.Pats"
                     let e =
                         if dotms.Length = longId.Length then
-                            let e = SynExpr.LongIdent(false, LongIdentWithDots(longId, List.take (dotms.Length - 1) dotms), None, m)
+                            let e = SynExpr.LongIdent(false, LongIdentWithDots(longId, List.take (dotms.Length - 1) dotms), None, false, m)
                             SynExpr.DiscardAfterMissingQualificationAfterDot(e, unionRanges e.Range (List.last dotms))
-                        else SynExpr.LongIdent(false, lidwd, None, m)
+                        else SynExpr.LongIdent(false, lidwd, None, false, m)
                     List.fold (fun f x -> mkSynApp1 f (convSynPatToSynExpr x) m) e args
                 | SynPat.Tuple (args, m) -> SynExpr.Tuple(List.map convSynPatToSynExpr args, [], m)
                 | SynPat.Paren (p, _) -> convSynPatToSynExpr p
@@ -5513,7 +5513,7 @@ and TcExprFlex cenv flex ty (env: TcEnv) tpenv (e: SynExpr) =
     if flex then
         let argty = NewInferenceType ()
         AddCxTypeMustSubsumeType ContextInfo.NoContext env.DisplayEnv cenv.css e.Range NoTrace ty argty 
-        let e', tpenv  = TcExpr cenv argty env tpenv e 
+        let e', tpenv  = TcExpr cenv argty env tpenv e
         let e' = mkCoerceIfNeeded cenv.g ty argty e'
         e', tpenv
     else
@@ -5602,7 +5602,7 @@ and TcExprThen cenv overallTy env tpenv synExpr delayed =
         if isOpt then errorR(Error(FSComp.SR.tcSyntaxErrorUnexpectedQMark(), mLongId))
         // Check to see if pattern translation decided to use an alternative identifier.
         match altNameRefCellOpt with 
-        | Some {contents = Decided altId} -> TcExprThen cenv overallTy env tpenv (SynExpr.LongIdent(isOpt, LongIdentWithDots([altId], []), None, mLongId)) delayed
+        | Some {contents = Decided altId} -> TcExprThen cenv overallTy env tpenv (SynExpr.LongIdent(isOpt, LongIdentWithDots([altId], []), None, false, mLongId)) delayed
         | _ -> TcLongIdentThen cenv overallTy env tpenv longId delayed
 
     // f x
