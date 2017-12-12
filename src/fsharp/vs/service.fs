@@ -183,6 +183,20 @@ type TypeCheckInfo
     let infoReader = new InfoReader(g,amap)
     let ncenv = new NameResolver(g,amap,infoReader,NameResolution.FakeInstantiationGenerator)
     
+    let openedModules = 
+        lazy (
+            let comparer = 
+                { new IEqualityComparer<EntityRef> with
+                    member __.Equals(e1, e2) = NameResolution.TyconRefDefnEq g e1 e2 || fullDisplayTextOfModRef e1 = fullDisplayTextOfModRef e2
+                    member __.GetHashCode e = hash e.DefinitionRange }
+            
+            let dict = Dictionary(comparer)
+            for openDecl in openDeclarations do
+                for modul in openDecl.Modules do
+                    dict.[modul] <- openDecl.AppliedScope
+            dict
+        )
+    
     /// Find the most precise naming environment for the given line and column
     let GetBestEnvForPos cursorPos  =
         
@@ -744,6 +758,15 @@ type TypeCheckInfo
                                         match x.Symbol with
                                         | :? FSharpMemberOrFunctionOrValue as m when m.IsConstructor && filterCtors = ResolveTypeNamesToTypeRefs -> false 
                                         | _ -> true)
+                                   // filter out symbols parents of which are already opened
+                                   |> List.filter (fun x ->
+                                        match x.Parent with
+                                        | Some parent ->
+                                            match openedModules.Value.TryGetValue parent.Entity with
+                                            | true, scope -> not (rangeContainsPos scope pos)
+                                            | _ -> true
+                                        | None -> true
+                                      )
                                    
                                let getItem (x: AssemblySymbol) = x.Symbol.Item
                                

@@ -89,7 +89,8 @@ type internal AssemblySymbol =
       AutoOpenParent: Idents option
       Symbol: FSharpSymbol
       /// Function that returns `EntityKind` based of given `LookupKind`.
-      Kind: LookupType -> EntityKind }
+      Kind: LookupType -> EntityKind 
+      Parent: FSharpEntity option }
 
 /// `RawEntity` list retrieved from an assembly.
 type internal AssemblyContentCacheEntry =

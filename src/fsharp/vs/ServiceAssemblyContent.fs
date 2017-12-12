@@ -111,7 +111,8 @@ type AssemblySymbol =
       TopRequireQualifiedAccessParent: Idents option
       AutoOpenParent: Idents option
       Symbol: FSharpSymbol
-      Kind: LookupType -> EntityKind }
+      Kind: LookupType -> EntityKind
+      Parent: FSharpEntity option }
     override x.ToString() = sprintf "%A" x  
 
 type AssemblyPath = string
@@ -123,14 +124,14 @@ type Parent =
       TopRequiresQualifiedAccess: (* isForMemberOrValue *) bool -> Idents option
       AutoOpen: Idents option
       WithModuleSuffix: Idents option 
-      IsModule: bool }
+      Entity: FSharpEntity option }
     static member Empty = 
         { Namespace = None
           ThisRequiresQualifiedAccess = fun _ -> None
           TopRequiresQualifiedAccess = fun _ -> None
           AutoOpen = None
           WithModuleSuffix = None 
-          IsModule = true }
+          Entity = None }
     static member RewriteParentIdents (parentIdents: Idents option) (idents: Idents) =
         match parentIdents with
         | Some p when p.Length <= idents.Length -> 
@@ -208,6 +209,7 @@ module AssemblyContentProvider =
                     match entity with
                     | Symbol.Attribute -> EntityKind.Attribute 
                     | _ -> EntityKind.Type
+              Parent = parent.Entity
             })
 
     let private traverseMemberFunctionAndValues ns (parent: Parent) (membersFunctionsAndValues: seq<FSharpMemberOrFunctionOrValue>) =
@@ -222,7 +224,8 @@ module AssemblyContentProvider =
                   TopRequireQualifiedAccessParent = parent.TopRequiresQualifiedAccess true |> Option.map parent.FixParentModuleSuffix
                   AutoOpenParent = parent.AutoOpen |> Option.map parent.FixParentModuleSuffix
                   Symbol = func
-                  Kind = fun _ -> EntityKind.FunctionOrValue func.IsActivePattern }
+                  Kind = fun _ -> EntityKind.FunctionOrValue func.IsActivePattern
+                  Parent = parent.Entity }
 
             [ yield! func.TryGetFullDisplayName() 
                      |> Option.map (fun fullDisplayName -> processIdents func.FullName (fullDisplayName.Split '.'))
@@ -280,7 +283,7 @@ module AssemblyContentProvider =
                             else parent.WithModuleSuffix
 
                           Namespace = ns
-                          IsModule = entity.IsFSharpModule }
+                          Entity = Some entity }
 
                     match entity.TryGetMembersFunctionsAndValues with
                     | xs when xs.Count > 0 ->

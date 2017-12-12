@@ -251,6 +251,9 @@ type internal ItemOccurence =
 /// Check for equality, up to signature matching
 val ItemsAreEffectivelyEqual : TcGlobals -> Item -> Item -> bool
 
+/// Check if two entity references are equal
+val TyconRefDefnEq : TcGlobals -> EntityRef -> EntityRef -> bool
+
 [<Class>]
 type internal CapturedNameResolution = 
     /// line and column

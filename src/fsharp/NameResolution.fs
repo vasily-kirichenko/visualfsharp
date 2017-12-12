@@ -1336,7 +1336,7 @@ let (|ActivePatternCaseUse|_|) (item:Item) =
     | Item.ActivePatternResult(ap, _, idx,_) -> Some (ap.Range, ap.Range, idx)
     | _ -> None
 
-let tyconRefDefnEq g (eref1:EntityRef) (eref2: EntityRef) =
+let TyconRefDefnEq g (eref1:EntityRef) (eref2: EntityRef) =
     tyconRefEq g eref1 eref2 
     // Signature items considered equal to implementation items
     || ((eref1.DefinitionRange = eref2.DefinitionRange || eref1.SigRange = eref2.SigRange) &&
@@ -1349,13 +1349,13 @@ let valRefDefnEq g (vref1:ValRef) (vref2: ValRef) =
         (vref1.LogicalName = vref2.LogicalName)
 
 let unionCaseRefDefnEq g (uc1:UnionCaseRef) (uc2: UnionCaseRef) =
-    uc1.CaseName = uc2.CaseName && tyconRefDefnEq g uc1.TyconRef uc2.TyconRef
+    uc1.CaseName = uc2.CaseName && TyconRefDefnEq g uc1.TyconRef uc2.TyconRef
 
 /// Given the Item 'orig' - returns function 'other : Item -> bool', that will yield true if other and orig represents the same item and false - otherwise
 let ItemsAreEffectivelyEqual g orig other = 
     match orig, other  with
     | EntityUse ty1, EntityUse ty2 -> 
-        tyconRefDefnEq g ty1 ty2
+        TyconRefDefnEq g ty1 ty2
 
     | Item.TypeVar (nm1,tp1), Item.TypeVar (nm2,tp2) -> 
         nm1 = nm2 && 
@@ -1366,7 +1366,7 @@ let ItemsAreEffectivelyEqual g orig other =
             not tp2.IsCompilerGenerated && not tp2.IsFromError && 
             tp1.Range = tp2.Range
          | AbbrevOrAppTy tcref1, AbbrevOrAppTy tcref2 -> 
-            tyconRefDefnEq g tcref1 tcref2
+            TyconRefDefnEq g tcref1 tcref2
          | _ -> false)
 
     | ValUse vref1, ValUse vref2 -> 
@@ -1402,7 +1402,7 @@ let ItemsAreEffectivelyEqual g orig other =
         unionCaseRefDefnEq g u1 u2
 
     | RecordFieldUse(name1, tcref1), RecordFieldUse(name2, tcref2) -> 
-        name1 = name2 && tyconRefDefnEq g tcref1 tcref2
+        name1 = name2 && TyconRefDefnEq g tcref1 tcref2
 
     | EventUse evt1, EventUse evt2 -> 
         EventInfo.EventInfosUseIdenticalDefintions evt1 evt2  ||
@@ -1412,7 +1412,7 @@ let ItemsAreEffectivelyEqual g orig other =
         | _ -> false
 
     | Item.ModuleOrNamespaces modrefs1, Item.ModuleOrNamespaces modrefs2 ->
-        modrefs1 |> List.exists (fun modref1 -> modrefs2 |> List.exists (fun r -> tyconRefDefnEq g modref1 r || fullDisplayTextOfModRef modref1 = fullDisplayTextOfModRef r))
+        modrefs1 |> List.exists (fun modref1 -> modrefs2 |> List.exists (fun r -> TyconRefDefnEq g modref1 r || fullDisplayTextOfModRef modref1 = fullDisplayTextOfModRef r))
 
     | _ -> false
 

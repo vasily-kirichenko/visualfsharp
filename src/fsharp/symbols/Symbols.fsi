@@ -159,6 +159,9 @@ and [<Class>] internal FSharpEntity =
     
     internal new : Impl.cenv * EntityRef -> FSharpEntity
 
+    /// Underlined entity reference
+    member Entity: EntityRef
+
     //   /// Return the FSharpEntity corresponding to a .NET type
     // static member FromType : System.Type -> FSharpEntity
 
