@@ -10847,7 +10847,30 @@ and ApplyAbstractSlotInference (cenv:cenv) (envinner:TcEnv) (bindingTy, m, synTy
     if memberFlags.IsOverrideOrExplicitImpl then 
         
         // for error detection, we want to compare finality when testing for equivalence
-        let makeUniqueBySig meths = meths |> ListSet.setify (MethInfosEquivByNameAndSig EraseNone false cenv.g cenv.amap m)
+        let isUniqueBySig meths = 
+            meths
+            |> List.map (fun meth ->
+                //MethInfosEquivByNameAndPartialSig erasureFlag ignoreFinal g amap m minfo minfo2 &&
+
+                (minfo.LogicalName = minfo2.LogicalName) &&
+                (minfo.GenericArity = minfo2.GenericArity) &&
+                (ignoreFinal || minfo.IsFinal = minfo2.IsFinal) &&
+                let formalMethTypars = minfo.FormalMethodTypars
+                let fminst = generalizeTypars formalMethTypars
+                let formalMethTypars2 = minfo2.FormalMethodTypars
+                let fminst2 = generalizeTypars formalMethTypars2
+                let argtys = minfo.GetParamTypes(amap, m, fminst)
+                let argtys2 = minfo2.GetParamTypes(amap, m, fminst2)
+                let (CompiledSig(_,retTy,formalMethTypars,_)) = CompiledSigOfMeth g amap m minfo
+                let (CompiledSig(_,retTy2,formalMethTypars2,_)) = CompiledSigOfMeth g amap m minfo2
+                //match retTy,retTy2 with 
+                //| None,None -> true
+                //| Some retTy,Some retTy2 -> typeAEquivAux erasureFlag g (TypeEquivEnv.FromEquivTypars formalMethTypars formalMethTypars2) retTy retTy2 
+                //| _ -> false
+            
+            )
+            meths |> ListSet.setify (MethInfosEquivByNameAndSig EraseNone false cenv.g cenv.amap m)
+        
         match memberFlags.MemberKind with 
         | MemberKind.Member -> 
              let dispatchSlots, dispatchSlotsArityMatch = 
