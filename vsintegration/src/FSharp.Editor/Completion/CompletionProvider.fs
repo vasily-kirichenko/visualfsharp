@@ -230,7 +230,7 @@ type internal FSharpCompletionProvider
             let! textVersion = context.Document.GetTextVersionAsync(context.CancellationToken)
             let getAllSymbols(fileCheckResults: FSharpCheckFileResults) =
                 if Settings.IntelliSense.ShowAllSymbols
-                then assemblyContentProvider.GetAllEntitiesInProjectAndReferencedAssemblies(fileCheckResults)
+                then assemblyContentProvider.GetAllEntitiesInProjectAndReferencedAssemblies(fileCheckResults) |> Async.RunSynchronously
                 else []
             let! results = 
                 FSharpCompletionProvider.ProvideCompletionsAsyncAux(checker, sourceText, context.Position, projectOptions, 

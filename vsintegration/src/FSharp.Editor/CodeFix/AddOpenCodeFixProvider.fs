@@ -119,9 +119,10 @@ type internal FSharpAddOpenCodeFixProvider
                 Range.mkRange context.Document.FilePath startPos endPos
             
             let isAttribute = UntypedParseImpl.GetEntityKind(unresolvedIdentRange.Start, parsedInput) = Some EntityKind.Attribute
+            let! assemblySymbols = assemblyContentProvider.GetAllEntitiesInProjectAndReferencedAssemblies checkResults |> Async.map Some
             
             let entities =
-                assemblyContentProvider.GetAllEntitiesInProjectAndReferencedAssemblies checkResults
+                assemblySymbols
                 |> List.collect (fun s -> 
                      [ yield s.TopRequireQualifiedAccessParent, s.AutoOpenParent, s.Namespace, s.CleanedIdents
                        if isAttribute then

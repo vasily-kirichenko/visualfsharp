@@ -12,7 +12,7 @@ type internal AssemblyContentProvider () =
     let entityCache = EntityCache()
 
     member x.GetAllEntitiesInProjectAndReferencedAssemblies (fileCheckResults: FSharpCheckFileResults) =
-        [ yield! AssemblyContentProvider.getAssemblySignatureContent AssemblyContentType.Full fileCheckResults.PartialAssemblySignature
+        [ yield async { return AssemblyContentProvider.getAssemblySignatureContent AssemblyContentType.Full fileCheckResults.PartialAssemblySignature }
           // FCS sometimes returns several FSharpAssembly for single referenced assembly. 
           // For example, it returns two different ones for Swensen.Unquote; the first one 
           // contains no useful entities, the second one does. Our cache prevents to process
@@ -25,7 +25,15 @@ type internal AssemblyContentProvider () =
               |> Seq.toList
               |> List.rev // if mscorlib.dll is the first then FSC raises exception when we try to
                           // get Content.Entities from it.
-
-          for fileName, signatures in assembliesByFileName do
-              let contentType = Public // it's always Public for now since we don't support InternalsVisibleTo attribute yet
-              yield! AssemblyContentProvider.getAssemblyContent entityCache.Locking contentType fileName signatures ]
+              
+          yield! 
+              assembliesByFileName 
+              |> List.map (fun (fileName, signatures) ->
+                  async {
+                      let contentType = Public // it's always Public for now since we don't support InternalsVisibleTo attribute yet
+                      return AssemblyContentProvider.getAssemblyContent entityCache contentType fileName signatures
+                  })
+        ] 
+        |> Async.Parallel
+        |> Async.map List.concat
+        

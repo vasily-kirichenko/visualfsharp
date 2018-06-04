@@ -82,8 +82,6 @@ type public EntityCache =
     new : unit -> EntityCache
     /// Clears the cache.
     member Clear : unit -> unit
-    /// Performs an operation on the cache in thread safe manner.
-    member Locking : (IAssemblyContentCache -> 'T) -> 'T
 
 /// Lond identifier (i.e. it may contain dots).
 type public StringLongIdent = string
@@ -108,7 +106,7 @@ module public AssemblyContentProvider =
 
     /// Returns (possibly cached) assembly content.
     val getAssemblyContent : 
-             withCache: ((IAssemblyContentCache -> AssemblySymbol list) -> AssemblySymbol list)  
+             cache: IAssemblyContentCache
           -> contentType: AssemblyContentType 
           -> fileName: string option 
           -> assemblies: FSharpAssembly list 

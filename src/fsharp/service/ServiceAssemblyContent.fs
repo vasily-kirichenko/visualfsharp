@@ -14,6 +14,7 @@ open Microsoft.FSharp.Compiler
 open Microsoft.FSharp.Compiler.Ast
 open Microsoft.FSharp.Compiler.Range
 open Microsoft.FSharp.Compiler.AbstractIL.Internal.Library 
+open System.Collections.Concurrent
 
 type ShortIdent = string
 type Idents = ShortIdent[]
@@ -311,7 +312,7 @@ module AssemblyContentProvider =
     let private getAssemblySignaturesContent contentType (assemblies: FSharpAssembly list) = 
         assemblies |> List.collect (fun asm -> getAssemblySignatureContent contentType asm.Contents)
 
-    let getAssemblyContent (withCache: (IAssemblyContentCache -> _) -> _) contentType (fileName: string option) (assemblies: FSharpAssembly list) =
+    let getAssemblyContent (cache: IAssemblyContentCache) contentType (fileName: string option) (assemblies: FSharpAssembly list) =
 
         // We ignore all diagnostics during this operation
         //
@@ -329,14 +330,13 @@ module AssemblyContentProvider =
         | [], _ -> []
         | assemblies, Some fileName ->
             let fileWriteTime = FileInfo(fileName).LastWriteTime 
-            withCache <| fun cache ->
-                match contentType, cache.TryGet fileName with 
-                | _, Some entry
-                | Public, Some entry when entry.FileWriteTime = fileWriteTime -> entry.Symbols
-                | _ ->
-                    let symbols = getAssemblySignaturesContent contentType assemblies
-                    cache.Set fileName { FileWriteTime = fileWriteTime; ContentType = contentType; Symbols = symbols }
-                    symbols
+            match contentType, cache.TryGet fileName with 
+            | _, Some entry
+            | Public, Some entry when entry.FileWriteTime = fileWriteTime -> entry.Symbols
+            | _ ->
+                let symbols = getAssemblySignaturesContent contentType assemblies
+                cache.Set fileName { FileWriteTime = fileWriteTime; ContentType = contentType; Symbols = symbols }
+                symbols
         | assemblies, None -> 
             getAssemblySignaturesContent contentType assemblies
         |> List.filter (fun entity -> 
@@ -349,7 +349,8 @@ module AssemblyContentProvider =
                 | _ -> false)
 
 type EntityCache() =
-    let dic = Dictionary<AssemblyPath, AssemblyContentCacheEntry>()
+    let dic = ConcurrentDictionary<AssemblyPath, AssemblyContentCacheEntry>()
+    
     interface IAssemblyContentCache with
         member __.TryGet assembly =
             match dic.TryGetValue assembly with
@@ -358,7 +359,6 @@ type EntityCache() =
         member __.Set assembly entry = dic.[assembly] <- entry
 
     member __.Clear() = dic.Clear()
-    member x.Locking f = lock dic <| fun _ -> f (x :> IAssemblyContentCache)
 
 type StringLongIdent = string
 
