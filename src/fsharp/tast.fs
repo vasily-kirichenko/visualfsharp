@@ -3219,25 +3219,22 @@ and
     /// Dereference the TyconRef to a Tycon. Amortize the cost of doing this.
     /// This path should not allocate in the amortized case
     member tcr.Deref = 
-        match box tcr.binding with 
-        | null ->
+        if obj.ReferenceEquals(tcr.binding, null) then
             tcr.Resolve(canError=true)
             match box tcr.binding with 
             | null -> error (InternalUndefinedItemRef (FSComp.SR.tastUndefinedItemRefModuleNamespaceType, String.concat "." tcr.nlr.EnclosingMangledPath, tcr.nlr.AssemblyName, tcr.nlr.LastItemMangledName))
             | _ -> tcr.binding
-        | _ -> 
+        else 
             tcr.binding
 
     /// Dereference the TyconRef to a Tycon option.
     member tcr.TryDeref = 
-        match box tcr.binding with 
-        | null -> 
+        if obj.ReferenceEquals(tcr.binding, null) then
             tcr.Resolve(canError=false)
             match box tcr.binding with 
             | null -> ValueNone
             | _ -> ValueSome tcr.binding
-
-        | _ -> 
+        else
             ValueSome tcr.binding
 
     /// Is the destination assembly available?
