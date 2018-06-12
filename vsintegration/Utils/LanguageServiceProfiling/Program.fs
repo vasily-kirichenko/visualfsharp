@@ -186,7 +186,7 @@ let main argv =
 
 <C> for check the project
 <G> for GC.Collect(2)
-<F> for check TypeChecker.fs (you need to change it before rechecking)
+<F> for check some files (you need to change them before rechecking)
 <R> for find all references
 <L> for completion lists
 <W> for wasting 100M of memory
