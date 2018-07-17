@@ -100,7 +100,7 @@ type XmlDoc =
             | (lineA::rest) as lines ->
                 let lineAT = lineA.TrimStart([|' '|])
                 if lineAT = "" then processLines rest
-                else if lineAT.StartsWith "<" then lines
+                else if lineAT.StartsWithOrdinal("<") then lines
                 else ["<summary>"] @
                      (lines |> List.map (fun line -> Microsoft.FSharp.Core.XmlAdapters.escape(line))) @
                      ["</summary>"]
@@ -180,7 +180,7 @@ type LongIdentWithDots =
         | LongIdentWithDots([],_) -> failwith "rangeOfLidwd"
         | LongIdentWithDots([id],_) -> id.idRange
         | LongIdentWithDots(h::t,dotms) ->
-            let nonExtraDots = if dotms.Length = t.Length then dotms else List.take t.Length dotms
+            let nonExtraDots = if dotms.Length = t.Length then dotms else List.truncate t.Length dotms
             unionRanges h.idRange (List.last t).idRange |> unionRanges (List.last nonExtraDots)
 
 //------------------------------------------------------------------------
@@ -646,6 +646,9 @@ and
     /// F# syntax: expr.ident...ident <- expr
     | DotSet of SynExpr * longDotId:LongIdentWithDots * SynExpr * range:range
 
+    /// F# syntax: expr <- expr
+    | Set of SynExpr * SynExpr * range:range
+
     /// F# syntax: expr.[expr,...,expr]
     | DotIndexedGet of SynExpr * SynIndexerArg list * range * range:range
 
@@ -780,6 +783,7 @@ and
         | SynExpr.DotIndexedSet (range=m)
         | SynExpr.DotGet (range=m)
         | SynExpr.DotSet (range=m)
+        | SynExpr.Set (range=m)
         | SynExpr.DotNamedIndexedPropertySet (range=m)
         | SynExpr.LibraryOnlyUnionCaseFieldGet (range=m)
         | SynExpr.LibraryOnlyUnionCaseFieldSet (range=m)
@@ -841,6 +845,7 @@ and
         | SynExpr.DotIndexedGet (range=m)
         | SynExpr.DotIndexedSet (range=m)
         | SynExpr.DotSet (range=m)
+        | SynExpr.Set (range=m)
         | SynExpr.DotNamedIndexedPropertySet (range=m)
         | SynExpr.LibraryOnlyUnionCaseFieldGet (range=m)
         | SynExpr.LibraryOnlyUnionCaseFieldSet (range=m)
@@ -905,6 +910,7 @@ and
         | SynExpr.DotIndexedSet (range=m)
         | SynExpr.DotGet (range=m)
         | SynExpr.DotSet (range=m)
+        | SynExpr.Set (range=m)
         | SynExpr.DotNamedIndexedPropertySet (range=m)
         | SynExpr.LibraryOnlyUnionCaseFieldGet (range=m)
         | SynExpr.LibraryOnlyUnionCaseFieldSet (range=m)
@@ -1822,11 +1828,23 @@ let mkSynInfix opm (l:SynExpr) oper (r:SynExpr) =
     let firstTwoRange = unionRanges l.Range opm
     let wholeRange = unionRanges l.Range r.Range
     SynExpr.App (ExprAtomicFlag.NonAtomic, false, SynExpr.App (ExprAtomicFlag.NonAtomic, true, mkSynOperator opm oper, l, firstTwoRange), r, wholeRange)
+
 let mkSynBifix   m oper x1 x2 = SynExpr.App (ExprAtomicFlag.NonAtomic, false, SynExpr.App (ExprAtomicFlag.NonAtomic, true, mkSynOperator m oper,x1,m), x2,m)
 let mkSynTrifix  m oper x1 x2 x3 = SynExpr.App (ExprAtomicFlag.NonAtomic, false, SynExpr.App (ExprAtomicFlag.NonAtomic, false, SynExpr.App (ExprAtomicFlag.NonAtomic, true, mkSynOperator m oper,x1,m), x2,m), x3,m)
 let mkSynQuadfix m oper x1 x2 x3 x4 = SynExpr.App (ExprAtomicFlag.NonAtomic, false, SynExpr.App (ExprAtomicFlag.NonAtomic, false, SynExpr.App (ExprAtomicFlag.NonAtomic, false, SynExpr.App (ExprAtomicFlag.NonAtomic, true, mkSynOperator m oper,x1,m), x2,m), x3,m),x4,m)
 let mkSynQuinfix m oper x1 x2 x3 x4 x5 = SynExpr.App (ExprAtomicFlag.NonAtomic, false, SynExpr.App (ExprAtomicFlag.NonAtomic, false, SynExpr.App (ExprAtomicFlag.NonAtomic, false, SynExpr.App (ExprAtomicFlag.NonAtomic, false, SynExpr.App (ExprAtomicFlag.NonAtomic, true, mkSynOperator m oper,x1,m), x2,m), x3,m),x4,m),x5,m)
-let mkSynPrefix opm m oper x = SynExpr.App (ExprAtomicFlag.NonAtomic, false, mkSynOperator opm oper, x,m)
+
+let mkSynPrefixPrim opm m oper x = 
+    SynExpr.App (ExprAtomicFlag.NonAtomic, false, mkSynOperator opm oper, x,m)
+
+let mkSynPrefix opm m oper x = 
+    if oper = "~&" then 
+        SynExpr.AddressOf(true,x,opm,m)
+    elif oper = "~&&" then 
+        SynExpr.AddressOf(false,x,opm,m)
+    else
+        mkSynPrefixPrim opm m oper x
+
 let mkSynCaseName m n = [mkSynId m (CompileOpName n)]
 
 let mkSynApp1 f x1 m = SynExpr.App(ExprAtomicFlag.NonAtomic,false,f,x1,m)
@@ -1873,7 +1891,8 @@ let mkSynAssign (l: SynExpr) (r: SynExpr) =
         mkSynDotParenSet m a b r
     | SynExpr.App (_, _, SynExpr.LongIdent(false,v,None,_),x,_)  -> SynExpr.NamedIndexedPropertySet (v,x,r,m)
     | SynExpr.App (_, _, SynExpr.DotGet(e,_,v,_),x,_)  -> SynExpr.DotNamedIndexedPropertySet (e,v,x,r,m)
-    |   _ -> errorR(Error(FSComp.SR.astInvalidExprLeftHandOfAssignment(), m));  l  // return just the LHS, so the typechecker can see it and capture expression typings that may be useful for dot lookups
+    | l  -> SynExpr.Set (l,r,m)
+    //|   _ -> errorR(Error(FSComp.SR.astInvalidExprLeftHandOfAssignment(), m));  l  // return just the LHS, so the typechecker can see it and capture expression typings that may be useful for dot lookups
 
 let rec mkSynDot dotm m l r =
     match l with
@@ -2372,6 +2391,7 @@ let rec synExprContainsError inpExpr =
 
           | SynExpr.NamedIndexedPropertySet (_,e1,e2,_)
           | SynExpr.DotSet (e1,_,e2,_)
+          | SynExpr.Set (e1,e2,_)
           | SynExpr.LibraryOnlyUnionCaseFieldSet (e1,_,_,e2,_)
           | SynExpr.JoinIn (e1,_,e2,_)
           | SynExpr.App (_,_,e1,e2,_) ->

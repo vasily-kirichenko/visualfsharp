@@ -212,6 +212,7 @@ type FSharpParseFileResults(errors: FSharpErrorInfo[], input: Ast.ParsedInput op
 
                   | SynExpr.NamedIndexedPropertySet (_,e1,e2,_)
                   | SynExpr.DotSet (e1,_,e2,_)
+                  | SynExpr.Set (e1,e2,_)
                   | SynExpr.LibraryOnlyUnionCaseFieldSet (e1,_,_,e2,_)
                   | SynExpr.App (_,_,e1,e2,_) -> 
                       yield! walkExpr false e1 
@@ -485,6 +486,13 @@ module UntypedParseImpl =
                     else
                         // see comment below for SynExpr.DotSet
                         Some((unionRanges synExpr.Range r))
+            | SynExpr.Set(synExpr, synExpr2, range) ->
+                if AstTraversal.rangeContainsPosLeftEdgeInclusive synExpr.Range pos then
+                    traverseSynExpr synExpr
+                elif AstTraversal.rangeContainsPosLeftEdgeInclusive synExpr2.Range pos then
+                    traverseSynExpr synExpr2
+                else
+                    Some(range)
             | SynExpr.DotSet(synExpr, LongIdentWithDots(longIdent,_), synExpr2, _range) ->
                 if AstTraversal.rangeContainsPosLeftEdgeInclusive synExpr.Range pos then
                     traverseSynExpr synExpr
@@ -645,6 +653,10 @@ module UntypedParseImpl =
                         | SynExpr.DotSet(exprLeft, lidwd, exprRhs, _m) ->
                             [ dive exprLeft exprLeft.Range traverseSynExpr
                               dive lidwd lidwd.Range (traverseLidOrElse(Some exprLeft))
+                              dive exprRhs exprRhs.Range traverseSynExpr
+                            ] |> pick expr
+                        | SynExpr.Set(exprLeft, exprRhs, _m) ->
+                            [ dive exprLeft exprLeft.Range traverseSynExpr
                               dive exprRhs exprRhs.Range traverseSynExpr
                             ] |> pick expr
                         | SynExpr.NamedIndexedPropertySet(lidwd, exprIndexer, exprRhs, _m) ->
@@ -848,6 +860,7 @@ module UntypedParseImpl =
             | SynExpr.LongIdentSet(_, e, _) -> walkExprWithKind parentKind e
             | SynExpr.DotGet(e, _, _, _) -> walkExprWithKind parentKind e
             | SynExpr.DotSet(e, _, _, _) -> walkExprWithKind parentKind e
+            | SynExpr.Set(e, _, _) -> walkExprWithKind parentKind e
             | SynExpr.DotIndexedGet(e, args, _, _) -> walkExprWithKind parentKind e |> Option.orElse (List.tryPick walkIndexerArg args)
             | SynExpr.DotIndexedSet(e, args, _, _, _, _) -> walkExprWithKind parentKind e |> Option.orElse (List.tryPick walkIndexerArg args)
             | SynExpr.NamedIndexedPropertySet(_, e1, e2, _) -> List.tryPick (walkExprWithKind parentKind) [e1; e2]
@@ -1240,6 +1253,9 @@ module UntypedParseImpl =
                             | _ -> defaultTraverse synBinding
 
                         match headPat with
+                        | SynPat.LongIdent(longDotId = lidwd) when rangeContainsPos lidwd.Range pos ->
+                            // let fo|o x = ()
+                            Some CompletionContext.Invalid
                         | SynPat.LongIdent(_,_,_,ctorArgs,_,_) ->
                             match ctorArgs with
                             | SynConstructorArgs.Pats(pats) ->
@@ -1256,6 +1272,9 @@ module UntypedParseImpl =
                                     | _ -> visitParam pat
                                 )
                             | _ -> defaultTraverse synBinding
+                        | SynPat.Named(range = range) when rangeContainsPos range pos ->
+                            // let fo|o = 1
+                            Some CompletionContext.Invalid
                         | _ -> defaultTraverse synBinding 
                     
                     member __.VisitHashDirective(range) = 
@@ -1344,7 +1363,7 @@ module UntypedParseImpl =
                       else None)
              else
                 // Paired [< and >] were not found, try to determine that we are after [< without closing >]
-                match lineStr.LastIndexOf "[<" with
+                match lineStr.LastIndexOf("[<", StringComparison.Ordinal) with
                 | -1 -> None
                 | openParenIndex when pos.Column >= openParenIndex + 2 -> 
                     let str = lineStr.[openParenIndex + 2..pos.Column - 1].TrimStart()
