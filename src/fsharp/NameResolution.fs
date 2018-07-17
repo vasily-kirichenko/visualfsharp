@@ -2129,7 +2129,7 @@ let rec ResolveLongIdentInTypePrim (ncenv:NameResolver) nenv lookupKind (resInfo
         | None -> 
             let anonRecdSearch = 
                 match lookupKind with 
-                | LookupKind.Expr -> TryFindAnonRecdFieldOfType g typ nm
+                | LookupKind.Expr -> TryFindAnonRecdFieldOfType g ty nm
                 | _ -> None
             match anonRecdSearch with 
             | Some item -> 
@@ -3647,7 +3647,7 @@ let ResolveCompletionsInType (ncenv: NameResolver) nenv (completionTargets: Reso
     let anonFields =
         if statics then  []
         else
-            match tryDestAnonRecdTy g typ with 
+            match tryDestAnonRecdTy g ty with 
             | Some (anonInfo, tys) -> 
                 [ for (i,id) in Array.indexed anonInfo.SortedIds do 
                     yield Item.AnonRecdField(anonInfo, tys, i, id.idRange) ]
@@ -3697,7 +3697,7 @@ let rec ResolvePartialLongIdentInType (ncenv: NameResolver) nenv isApplicableMet
 
       (if statics then [] 
        else 
-          match TryFindAnonRecdFieldOfType g typ id with 
+          match TryFindAnonRecdFieldOfType g ty id with 
           | Some (Item.AnonRecdField(_anonInfo, tys, i, _)) -> ResolvePartialLongIdentInType ncenv nenv isApplicableMeth m ad false rest tys.[i]
           | _ -> []) @
 
@@ -4161,7 +4161,7 @@ let ResolveCompletionsInTypeForItem (ncenv: NameResolver) nenv m ad statics ty (
                 yield! ty |> GetNestedTypesOfType (ad, ncenv, None, TypeNameResolutionStaticArgsInfo.Indefinite, false, m) |> List.map (ItemOfTy g)
         | _ ->
             if not statics then
-                match tryDestAnonRecdTy g typ with 
+                match tryDestAnonRecdTy g ty with 
                 | Some (anonInfo, tys) -> 
                     for (i,id) in Array.indexed anonInfo.SortedIds do 
                         yield Item.AnonRecdField(anonInfo, tys, i, id.idRange)
@@ -4335,7 +4335,7 @@ let rec ResolvePartialLongIdentInTypeForItem (ncenv: NameResolver) nenv m ad sta
           for pinfo in pinfos do
               yield! (fullTypeOfPinfo pinfo) |> ResolvePartialLongIdentInTypeForItem ncenv nenv m ad false rest item
     
-          match TryFindAnonRecdFieldOfType g typ id with 
+          match TryFindAnonRecdFieldOfType g ty id with 
           | Some (Item.AnonRecdField(_anonInfo, tys, i, _)) -> 
               let tyinfo = tys.[i]
               yield! ResolvePartialLongIdentInTypeForItem ncenv nenv m ad false rest item tyinfo

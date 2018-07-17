@@ -343,10 +343,9 @@ let rec CheckTypeDeep (cenv: cenv) ((visitTy,visitTyconRefOpt,visitAppTyOpt,visi
         if not (cenv.anonRecdTypes.ContainsKey anonInfo.Stamp) then 
              cenv.anonRecdTypes <- cenv.anonRecdTypes.Add(anonInfo.Stamp, anonInfo)
         CheckTypesDeep cenv f g env typs
-
     | TType_ucase (_,typs)
     | TType_anon (_,typs) 
-    | TType_tuple (_,tys) -> CheckTypesDeep cenv f g env tys
+    | TType_tuple (_,typs) -> CheckTypesDeep cenv f g env typs
     | TType_fun (s,t) -> CheckTypeDeep cenv f g env true s; CheckTypeDeep cenv f g env true t
     | TType_var tp -> 
           if not tp.IsSolved then 
@@ -388,7 +387,7 @@ let CheckForByrefLikeType cenv env m ty check =
 
 /// Check for byref types
 let CheckForByrefType cenv env ty check = 
-    CheckTypeDeep (ignore, Some (fun _deep tcref -> if isByrefTyconRef cenv.g tcref then check()),  None, None, None) cenv.g env false ty
+    CheckTypeDeep cenv (ignore, Some (fun _deep tcref -> if isByrefTyconRef cenv.g tcref then check()),  None, None, None) cenv.g env false ty
 
 /// check captures under lambdas
 ///

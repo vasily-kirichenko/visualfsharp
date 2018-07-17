@@ -7061,7 +7061,7 @@ and TcAnonRecdExpr cenv overallTy env tpenv (isStruct, optOrigExpr, unsortedArgs
                 let tcref, _ = destAppTy cenv.g origExprTy
                 tcref.IsStructOrEnumTycon
 
-        let wrap, oldveaddr = mkExprAddrOfExpr cenv.g origExprIsStruct false NeverMutates oldve None mOrigExpr
+        let wrap, oldveaddr, _, _ = mkExprAddrOfExpr cenv.g origExprIsStruct false NeverMutates oldve None mOrigExpr
 
         // Put all the expressions in unsorted order.  The new bindings come first.  The origin of each is tracked using
         ///   - Choice1Of2 for a new binding
@@ -8584,7 +8584,7 @@ and TcDelayed cenv overallTy env tpenv mExpr expr exprty (atomicFlag:ExprAtomicF
         let _wrap, exprAddress, _readonly, _writeonly = mkExprAddrOfExpr cenv.g true false DefinitelyMutates expr None mExpr
         let vty = tyOfExpr cenv.g expr
         // Always allow subsumption on assignment to fields
-        let expr2, tpenv = TcExprFlex cenv true vty env tpenv synExpr2
+        let expr2, tpenv = TcExprFlex cenv true false vty env tpenv synExpr2
         let v, _ve = mkCompGenLocal mExpr "addr" (mkByrefTy cenv.g vty)
         mkCompGenLet mStmt v exprAddress (mkAddrSet mStmt (mkLocalValRef v) expr2), tpenv
 

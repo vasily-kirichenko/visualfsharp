@@ -732,7 +732,7 @@ let pickleObjWithDanglingCcus inMem file g scope p x =
       st1.otypars.Size,
       st1.ovals.Size,
       st1.oanoninfos.Size 
-    st1.occus, sizes, st1.ostrings, st1.opubpaths,st1.onlerefs, st1.osimpletyps, st1.os.Close()
+    st1.occus, sizes, st1.ostrings, st1.opubpaths,st1.onlerefs, st1.osimpletys, st1.os.Close()
 
   let phase2bytes = 
     let st2 = 
@@ -763,7 +763,7 @@ let pickleObjWithDanglingCcus inMem file g scope p x =
         (p_array p_encoded_nleref) 
         (p_array p_encoded_simpletyp) 
         p_bytes 
-        (stringTab.AsArray,pubpathTab.AsArray,nlerefTab.AsArray,simpletypTab.AsArray,phase1bytes)
+        (stringTab.AsArray,pubpathTab.AsArray,nlerefTab.AsArray,simpleTyTab.AsArray,phase1bytes)
         st2
     st2.os.Close()
   phase2bytes
@@ -807,7 +807,7 @@ let unpickleObjWithDanglingCcus file ilscope (iILModule:ILModuleDef option) u (p
     let stringTab    = new_itbl "istrings"    (Array.map decode_string stringTab)
     let pubpathTab   = new_itbl "ipubpaths"   (Array.map (decode_pubpath st2 stringTab) pubpathTab)
     let nlerefTab    = new_itbl "inlerefs"    (Array.map (decode_nleref st2 ccuTab stringTab) nlerefTab)
-    let simpleTyTab = new_itbl "isimpletys" (Array.map (decode_simpletyp st2 ccuTab stringTab nlerefTab) simpleTyTab)
+    let simpleTyTab = new_itbl "isimpletys" (Array.map (decode_simpletyp st2 ccuTab stringTab nlerefTab) simpletypTab)
     let data = 
         let st1 = 
            { is = ByteStream.FromBytes (phase1bytes,0,phase1bytes.Length) 
@@ -1408,7 +1408,7 @@ let p_trait_sln sln st =
     | FSRecdFieldSln(a,b,c) ->
          p_byte 4 st; p_tup3 p_tys p_rfref p_bool (a,b,c) st
     | FSAnonRecdFieldSln(a, b, c) ->
-         p_byte 5 st; p_tup3 p_anonInfo p_typs p_int (a,b,c) st
+         p_byte 5 st; p_tup3 p_anonInfo p_tys p_int (a,b,c) st
 
 let p_trait (TTrait(a,b,c,d,e,f)) st  = 
     p_tup6 p_tys p_string p_MemberFlags p_tys (p_option p_ty) (p_option p_trait_sln) (a,b,c,d,e,!f) st
@@ -1438,7 +1438,7 @@ let u_trait_sln st =
         let (a,b,c) = u_tup3 u_tys u_rfref u_bool st
         FSRecdFieldSln(a,b,c) 
     | 5 -> 
-         let (a,b,c) = u_tup3 u_anonInfo u_typs u_int st
+         let (a,b,c) = u_tup3 u_anonInfo u_tys u_int st
          FSAnonRecdFieldSln(a, b, c)
     | _ -> ufailwith st "u_trait_sln" 
 
@@ -1607,7 +1607,7 @@ let _ = fill_p_ty (fun ty st ->
     | TType_anon (anonInfo, l) -> 
          p_byte 9 st
          p_anonInfo anonInfo st
-         p_typs l st)
+         p_tys l st)
 
 let _ = fill_u_ty (fun st ->
     let tag = u_byte st
@@ -1621,7 +1621,7 @@ let _ = fill_u_ty (fun st ->
     | 6 -> let unt = u_measure_expr st                     in TType_measure unt
     | 7 -> let uc = u_ucref st in let tinst = u_tys st    in TType_ucase (uc,tinst)
     | 8 -> let l = u_tys st                               in TType_tuple (tupInfoStruct, l)
-    | 9 -> let anonInfo = u_anonInfo st in let l = u_typs st  in TType_anon (anonInfo, l)
+    | 9 -> let anonInfo = u_anonInfo st in let l = u_tys st  in TType_anon (anonInfo, l)
     | _ -> ufailwith st "u_ty")
   
 

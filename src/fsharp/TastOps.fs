@@ -2551,7 +2551,7 @@ module SimplifyTypes =
         | TType_app (_, typs) 
         | TType_ucase (_, typs) 
         | TType_anon (_, typs) 
-        | TType_tuple (_, tys) -> List.fold (foldTypeButNotConstraints f) z tys
+        | TType_tuple (_, typs) -> List.fold (foldTypeButNotConstraints f) z typs
         | TType_fun (s, t)         -> foldTypeButNotConstraints f (foldTypeButNotConstraints f z s) t
         | TType_var _            -> z
         | TType_measure _          -> z
@@ -5935,7 +5935,7 @@ let mkTupleFieldGet g (tupInfo, e, tinst, i, m) =
     wrap (mkTupleFieldGetViaExprAddr(tupInfo, e', tinst, i, m))
 
 let mkAnonRecdFieldGet g (anonInfo:AnonRecdTypeInfo, e, tinst, i, m) = 
-    let wrap,e' = mkExprAddrOfExpr g (evalAnonInfoIsStruct anonInfo) false NeverMutates e None m
+    let wrap, e', _readonly, _writeonly = mkExprAddrOfExpr g (evalAnonInfoIsStruct anonInfo) false NeverMutates e None m
     wrap (mkAnonRecdFieldGetViaExprAddr(anonInfo, e', tinst, i, m))
 
 let mkRecdFieldGet g (e, fref:RecdFieldRef, tinst, m) = 

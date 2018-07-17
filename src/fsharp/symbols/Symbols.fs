@@ -2114,13 +2114,13 @@ and FSharpType(cenv, ty:TType) =
     member __.IsAnonRecordType = 
        isResolved() &&
        protect <| fun () -> 
-        match stripTyparEqns typ with 
+        match stripTyparEqns ty with 
         | TType_anon _ -> true 
         | _ -> false
 
     member __.AnonRecordTypeDetails = 
        protect <| fun () -> 
-        match stripTyparEqns typ with 
+        match stripTyparEqns ty with 
         | TType_anon (anonInfo, _) -> FSharpAnonRecordTypeDetails(cenv, anonInfo)
         | _ -> invalidOp "not an anonymous record type"
 
@@ -2187,7 +2187,7 @@ and FSharpType(cenv, ty:TType) =
 
     member x.FormatLayout(denv: FSharpDisplayContext) =
        protect <| fun () -> 
-        NicePrint.prettyLayoutOfTypeNoCx (denv.Contents cenv.g) typ
+        NicePrint.prettyLayoutOfTypeNoCx (denv.Contents cenv.g) ty
 
     override x.ToString() = 
        protect <| fun () -> 
